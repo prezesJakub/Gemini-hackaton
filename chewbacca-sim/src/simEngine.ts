@@ -213,4 +213,20 @@ export class SimEngine {
     this.addLog('ACTION: Life support O2 reserves deployed (+40%).', 'success');
     this.notify('oxygen');
   }
+
+  public takeDamage(amount: number) {
+    if (this.health <= 0 || !this.isRunning) return;
+    this.health = Math.max(0, this.health - amount);
+    this.addLog(`WARNING: Hull damage detected! (${amount}%)`, 'warning');
+    this.notify('health');
+    
+    // Dead check is also needed here immediately, in case we drop below 0 outside tick()
+    if (this.health <= 0) {
+      this.health = 0;
+      this.addLog('CRITICAL: HULL INTEGRITY 0%. SHIP DESTROYED/CREW DEAD.', 'warning');
+      this.stop();
+      this.notify('health');
+      this.notify('status'); // Notify the UI that we are dead
+    }
+  }
 }

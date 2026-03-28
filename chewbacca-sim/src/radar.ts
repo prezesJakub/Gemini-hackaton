@@ -44,6 +44,7 @@ export class Radar {
   playerHp: number = 100;
   maxHp: number = 100;
   isGameOver: boolean = false;
+  onDamage?: (amount: number) => void;
 
   // Osiągnięcia
   distanceTraveled: number = 0;
@@ -319,7 +320,7 @@ export class Radar {
       const s = this.ships[i];
       if (s.isEnemy) {
         if (Math.hypot(s.position.x - this.playerPosition.x, s.position.y - this.playerPosition.y) < pRadius + eRadius) {
-          this.playerHp -= 30; // Ogromny dmg za stłuczke
+          if (this.onDamage) this.onDamage(30); // Zgłoszenie dmg z zewnątrz
           
           this.explosions.push({
             position: { x: s.position.x, y: s.position.y },
@@ -363,7 +364,7 @@ export class Radar {
       } else if (p.sourceId !== 'ally') { // Tylko pociski wrogów trafiają na dystans statku gracza
          // Pocisk wroga trafiający w drona gracza
         if (Math.hypot(p.position.x - this.playerPosition.x, p.position.y - this.playerPosition.y) < projRadius + pRadius) {
-           this.playerHp -= 20; // Dmg ze strzału
+           if (this.onDamage) this.onDamage(20); // Zgłoszenie dmg z zewnątrz
            this.projectiles.splice(i, 1);
            pDestroyed = true;
         }
@@ -372,11 +373,8 @@ export class Radar {
       if (pDestroyed) continue;
     }
 
-    // System GAME OVER po upadku Zdrowia
-    if (this.playerHp <= 0) {
-      this.isGameOver = true;
-      this.playerHp = 0;
-    }
+    // System GAME OVER obsługiwany jest teraz zewnętrznie.
+    // HP updatowane regularnie z silnika do Radar.playerHp
 
     // 5.5 Odświeżanie animacji wybuchów
     for (let i = this.explosions.length - 1; i >= 0; i--) {
@@ -551,23 +549,6 @@ export class Radar {
     ctx.fillText('Move: W/S/A/D | Aim: ARROW KEYS', 20, 90);
     ctx.fillText('AutoShoot active.', 20, 110);
 
-    // Ekran KOŃCOWY
-    if (this.isGameOver) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      ctx.fillRect(0, 0, width, height);
 
-      ctx.fillStyle = '#ff3333';
-      ctx.font = 'bold 48px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('GAME OVER', centerX, centerY - 20);
-      
-      ctx.fillStyle = '#fff';
-      ctx.font = '24px monospace';
-      ctx.fillText(`FINAL SCORE: ${Math.round(this.distanceTraveled / 10)}  |  KILLS: ${this.kills}`, centerX, centerY + 30);
-      ctx.font = '16px monospace';
-      ctx.fillText('Zacznij od nowa by pobić rekord. Naciśnij CTRL+R', centerX, centerY + 65);
-
-      ctx.textAlign = 'left'; // Reset
-    }
-  }
+}
 }

@@ -1,8 +1,6 @@
 import './style.css';
-import { AudioCapture } from './audio/AudioCapture';
-import { GeminiLiveClient, type ShipAction } from './ai/GeminiLiveClient';
-
 import { SimEngine } from './simEngine';
+import { Radar } from './radar';
 
 document.addEventListener('DOMContentLoaded', () => {
   // --- VIEWS ---
@@ -26,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- GAME UI ELEMENTS ---
   const header = document.getElementById('systemHeader') as HTMLElement;
   const statusIndicator = document.getElementById('systemStatus') as HTMLElement;
-  const gameScoreDisplay = document.getElementById('gameScoreDisplay') as HTMLElement;
+
   
   const healthBarFill = document.getElementById('healthBarFill') as HTMLElement;
   const healthText = document.getElementById('healthText') as HTMLElement;
@@ -51,6 +49,35 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- STATE ---
   let engine: SimEngine | null = null;
   let simulatedButtonInterval: number | null = null;
+  let hasHandledDeath = false;
+  
+  let radar: Radar | null = null;
+  let radarLoopId: number | null = null;
+  
+  const gameOverCauseDisplay = document.getElementById('gameOverCauseDisplay') as HTMLElement;
+  const radarContainer = document.getElementById('radarContainer');
+  let radarCanvas: HTMLCanvasElement | null = null;
+  let radarCtx: CanvasRenderingContext2D | null = null;
+  
+  if (radarContainer) {
+    radarCanvas = document.createElement('canvas');
+    radarCanvas.style.position = 'absolute';
+    radarCanvas.style.top = '0';
+    radarCanvas.style.left = '0';
+    radarCanvas.style.width = '100%';
+    radarCanvas.style.height = '100%';
+    radarContainer.appendChild(radarCanvas);
+    radarCtx = radarCanvas.getContext('2d');
+    
+    // ResizeObserver automatycznie wykryje zmianę display: none -> grid
+    new ResizeObserver(() => {
+      if (radarCanvas && radarContainer) {
+        const rect = radarContainer.getBoundingClientRect();
+        radarCanvas.width = rect.width;
+        radarCanvas.height = rect.height;
+      }
+    }).observe(radarContainer);
+  }
   
   // Simple local highscores array
   let highscores: {name: string, score: number}[] = [
@@ -81,9 +108,10 @@ document.addEventListener('DOMContentLoaded', () => {
     highscoresView.classList.remove('hidden');
   }
 
-  function showGameOver(finalScore: number) {
+  function showGameOver(finalScore: number, cause: string) {
     hideAllViews();
     gameOverScoreDisplay.textContent = `${finalScore}`;
+    gameOverCauseDisplay.textContent = cause;
     playerNameInput.value = ''; // clear previous
     playerNameInput.disabled = false;
     btnSubmitScore.disabled = false;
@@ -98,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Clean up old log
     eventLog.innerHTML = '';
+    hasHandledDeath = false;
     
     // Create new fresh engine
     engine = new SimEngine();
@@ -115,16 +144,17 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'oxygen':
           updateOxygenUI();
           break;
-        case 'score':
-          updateScoreUI();
-          break;
         case 'log':
           updateLogUI();
           break;
         case 'status':
           updateStatusUI();
           if (engine.isDead()) {
-             handleDeath();
+             let cause = 'AWARIA SYSTEMÓW';
+             if (engine.getHealth() <= 0) cause = 'KRYTYCZNE USZKODZENIA KADŁUBA';
+             if (engine.getOxygen() <= 0) cause = 'UDUSZENIE ZAŁOGI (BRAK O2)';
+             if (engine.getFuel() <= 0) cause = 'BRAK PALIWA';
+             handleDeath(cause);
           }
           break;
       }
@@ -134,10 +164,37 @@ document.addEventListener('DOMContentLoaded', () => {
     updateHealthUI();
     updateFuelUI();
     updateOxygenUI();
-    updateScoreUI();
     updateStatusUI();
 
     engine.start();
+
+    // Reset Radar inside game loop
+    if (radarLoopId !== null) cancelAnimationFrame(radarLoopId);
+    if (radarCanvas && radarCtx) {
+      radar = new Radar(radarCanvas);
+      radar.onDamage = (amount) => {
+        if (engine) engine.takeDamage(amount);
+      };
+      
+      let lastTime = performance.now();
+      
+      const gameLoop = (currentTime: number) => {
+        const deltaTime = (currentTime - lastTime) / 1000;
+        lastTime = currentTime;
+        
+        if (radar && engine) {
+           radar.playerHp = engine.getHealth();
+           radar.isGameOver = engine.isDead();
+           
+           if (engine.isActive() && !engine.isDead()) {
+             radar.update(deltaTime);
+           }
+           if (radarCtx) radar.render(radarCtx);
+        }
+        radarLoopId = requestAnimationFrame(gameLoop);
+      };
+      radarLoopId = requestAnimationFrame(gameLoop);
+    }
 
     // Setup random button availability simulator
     if (simulatedButtonInterval) clearInterval(simulatedButtonInterval);
@@ -159,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnSubmitScore.addEventListener('click', () => {
     if (!engine) return;
     const name = playerNameInput.value.trim().toUpperCase() || 'UNKNOWN CD';
-    const score = engine.getScore();
+    const score = radar ? Math.round(radar.distanceTraveled / 10) : engine.getScore();
     
     // Add and sort
     highscores.push({ name, score });
@@ -213,11 +270,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function updateScoreUI() {
-    if (!engine) return;
-    gameScoreDisplay.textContent = Math.floor(engine.getScore()).toString();
-  }
-
   function updateOxygenUI() {
     if (!engine) return;
     const o2 = engine.getOxygen();
@@ -248,10 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
     entry.appendChild(timeSpan);
     entry.append(` ${latest.message}`);
 
-    eventLog.appendChild(entry);
-    
-    // Auto scroll down
-    eventLog.scrollTop = eventLog.scrollHeight;
+    eventLog.prepend(entry);
   }
 
   function updateStatusUI() {
@@ -272,13 +321,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function handleDeath() {
-    if (!engine) return;
-    const finalScore = engine.getScore();
+  function handleDeath(cause: string) {
+    if (!engine || hasHandledDeath) return;
+    hasHandledDeath = true;
+    
+    const finalScore = radar ? Math.round(radar.distanceTraveled / 10) : 0;
     
     // Wait briefly so the player sees they died, then switch view
     setTimeout(() => {
-       showGameOver(finalScore);
+       showGameOver(finalScore, cause);
     }, 2500);
   }
 
@@ -295,131 +346,3 @@ document.addEventListener('DOMContentLoaded', () => {
   showMenu();
 });
 
-
-// Wpisz tutaj swój klucz API na czas hackatonu
-const API_KEY = "AIzaSyCBUx-o0IKRX16lbh34zIzYWrb09ABNep0";
-
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div class="hud">
-    <h1>VOID MARAUDER</h1>
-    <h2 class="subtitle">AI Voice Commander System</h2>
-    
-    <div class="panel">
-      <div class="status-indicator">
-        Status AI: <span id="ai-status" class="status-disconnected">Rozłączono</span>
-      </div>
-      
-      <button id="start-btn" class="cyber-button">INICJALIZACJA SYSTEMÓW STATKU (START)</button>
-    </div>
-
-    <div class="logs">
-      <h3>Dziennik Komend (Ostatnie intencje)</h3>
-      <div id="action-log">Oczekiwanie na komendy głosowe...</div>
-    </div>
-  </div>
-`;
-
-const startBtn = document.querySelector<HTMLButtonElement>('#start-btn')!;
-const statusSpan = document.querySelector<HTMLSpanElement>('#ai-status')!;
-const actionLog = document.querySelector<HTMLDivElement>('#action-log')!;
-
-const audioCapture = new AudioCapture();
-const aiClient = new GeminiLiveClient(API_KEY);
-
-aiClient.onStatusChange = (status) => {
-  statusSpan.textContent = status;
-  statusSpan.className = status === 'Połączono' ? 'status-connected' : 'status-disconnected';
-  if (status === 'Połączono') {
-    startBtn.textContent = 'SYSTEMY AKTYWNE (NASŁUCHUJĘ)';
-    startBtn.disabled = true;
-  }
-};
-
-aiClient.onActionParsed = (action: ShipAction) => {
-  const time = new Date().toLocaleTimeString();
-  const logEntry = document.createElement('div');
-  logEntry.className = 'log-entry highlight';
-  
-  const speech = action.recognized_speech ? `"${action.recognized_speech}"` : "niezrozumiały hałas";
-  // Oczyszczamy obiekt z tekstu żeby pokazać tylko twarde akcje jsona
-  const rawAction = { action: action.action, type: action.type };
-  if (!rawAction.type) delete rawAction.type;
-
-  let actionText = JSON.stringify(rawAction);
-  if (rawAction.action === "unknown") {
-    actionText = '<span style="color: #ff5555;">Brak prawidłowej akcji (zignorowano)</span>';
-  }
-
-  logEntry.innerHTML = `
-    <span style="color: #aaa;">[${time}] Usłyszano:</span> <span style="font-style: italic;">${speech}</span><br/>
-    <span style="color: #00ffcc;">➜ System wykonuje:</span> ${actionText}
-  `;
-
-  actionLog.prepend(logEntry);
-
-  if (actionLog.childElementCount > 10) {
-    actionLog.lastElementChild?.remove();
-  }
-
-  // W tym miejscu w przyszłości zostaną odpalone metody z fizyki statku (Antigravity engine)
-  // Przykładowo: 
-  // if (action.action === 'fire_weapons') ship.fire(action.type);
-};
-
-startBtn.addEventListener('click', async () => {
-  startBtn.textContent = 'ŁĄCZENIE Z KOMPUTEREM POKŁADOWYM...';
-
-  // 1. Uruchamiamy mikrofon
-  await audioCapture.start();
-
-  // 2. Kiedy mikrofon zacznie próbkować, wysyłamy chunki do Gemini
-  audioCapture.onAudioData = (base64Data) => {
-    aiClient.sendAudioChunk(base64Data);
-  };
-
-  // 3. Rozpoczynamy sesję WebSocketową Live API
-  aiClient.connect();
-});
-
-import { Radar } from './radar';
-
-const appDiv = document.getElementById('app');
-if (appDiv) {
-  // Reset stylów i przygotowanie pełnoekranowego płótna (canvas)
-  document.body.style.margin = '0';
-  document.body.style.overflow = 'hidden';
-  document.body.style.backgroundColor = '#000';
-
-  const canvas = document.createElement('canvas');
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  appDiv.appendChild(canvas);
-
-  const ctx = canvas.getContext('2d');
-  
-  // Konstrukcja radaru
-  const radar = new Radar(canvas);
-
-  // Zmiana rozmiaru okna
-  window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  });
-
-  // Pętla gry (Game Loop)
-  let lastTime = performance.now();
-  function gameLoop(currentTime: number) {
-    const deltaTime = (currentTime - lastTime) / 1000; // Czas w sekundach
-    lastTime = currentTime;
-
-    radar.update(deltaTime);
-    if (ctx) {
-      radar.render(ctx);
-    }
-
-    requestAnimationFrame(gameLoop);
-  }
-
-  // Uruchomienie pętli
-  requestAnimationFrame(gameLoop);
-}
