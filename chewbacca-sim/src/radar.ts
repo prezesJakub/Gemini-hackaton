@@ -44,9 +44,16 @@ export class Radar {
   // Tarcza
   public shieldActive: boolean = false;
   private shieldTimer: number = 0;
+  private shieldCooldown: number = 0;
 
   // Boost / Overdrive
   private boostActive: number = 0;
+  private boostCooldown: number = 0;
+
+  // Missiles
+  private missilesCooldown: number = 0;
+
+  private readonly COOLDOWN_TIME: number = 30;
 
   distanceTraveled: number = 0;
   kills: number = 0;
@@ -81,20 +88,26 @@ export class Radar {
     });
   }
 
-  public activateShield() {
+  public activateShield(): boolean {
+    if (this.shieldCooldown > 0) return false;
     this.shieldActive = true;
     this.shieldTimer = 5.0;
+    this.shieldCooldown = this.COOLDOWN_TIME;
+    return true;
   }
 
-  public activateBoost() {
+  public activateBoost(): boolean {
+    if (this.boostCooldown > 0) return false;
     const jumpDistance = 1500;
     this.playerPosition.y -= jumpDistance;
     this.distanceTraveled += jumpDistance;
     this.boostActive = 0.5;
+    this.boostCooldown = this.COOLDOWN_TIME;
     this.explosions.push({
       position: { x: this.playerPosition.x, y: this.playerPosition.y + 100 },
       life: 0.8, maxLife: 0.8, radius: 80
     });
+    return true;
   }
 
   public manualShoot() {
@@ -113,7 +126,8 @@ export class Radar {
     });
   }
 
-  public fireMissiles() {
+  public fireMissiles(): boolean {
+    if (this.missilesCooldown > 0) return false;
     const projSpeed = 900;
     const mag = Math.hypot(this.crosshairOffset.x, this.crosshairOffset.y);
     let baseVelX = 0; let baseVelY = -projSpeed;
@@ -135,10 +149,18 @@ export class Radar {
         sourceId: 'player'
       });
     });
+    this.missilesCooldown = this.COOLDOWN_TIME;
+    return true;
   }
 
   public update(deltaTime: number) {
     if (this.isGameOver) return;
+    
+    // Cooldowny
+    if (this.shieldCooldown > 0) this.shieldCooldown = Math.max(0, this.shieldCooldown - deltaTime);
+    if (this.boostCooldown > 0) this.boostCooldown = Math.max(0, this.boostCooldown - deltaTime);
+    if (this.missilesCooldown > 0) this.missilesCooldown = Math.max(0, this.missilesCooldown - deltaTime);
+
     if (this.shieldTimer > 0) {
       this.shieldTimer -= deltaTime;
       if (this.shieldTimer <= 0) { this.shieldTimer = 0; this.shieldActive = false; }
@@ -314,6 +336,36 @@ export class Radar {
     ctx.fillStyle = 'rgba(0, 255, 204, 0.9)'; ctx.font = '16px monospace';
     ctx.fillText(`SCORE: ${Math.round(this.distanceTraveled / 10)}`, 20, 30);
     ctx.fillText(`KILLS: ${this.kills}`, 220, 30);
+
+    // COOLDOWNS UI
+    const cdX = 20;
+    const cdYStart = height - 100;
+    const drawCD = (label: string, value: number, index: number) => {
+      const y = cdYStart + index * 25;
+      ctx.fillStyle = 'rgba(0, 255, 255, 0.7)';
+      ctx.font = '12px monospace';
+      ctx.fillText(label, cdX, y);
+      
+      // Bar background
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.fillRect(cdX + 80, y - 10, 100, 10);
+      
+      // Bar fill (inverse - grows as cooldown expires)
+      if (value > 0) {
+        ctx.fillStyle = 'rgba(255, 50, 50, 0.6)';
+        ctx.fillRect(cdX + 80, y - 10, (value / this.COOLDOWN_TIME) * 100, 10);
+        ctx.fillStyle = 'white';
+        ctx.fillText(`${value.toFixed(1)}s`, cdX + 185, y);
+      } else {
+        ctx.fillStyle = 'rgba(0, 255, 100, 0.6)';
+        ctx.fillRect(cdX + 80, y - 10, 100, 10);
+        ctx.fillText('READY', cdX + 185, y);
+      }
+    };
+
+    drawCD('MISSILES:', this.missilesCooldown, 0);
+    drawCD('SHIELD:', this.shieldCooldown, 1);
+    drawCD('BOOST:', this.boostCooldown, 2);
 
     if (!this.isActive && !this.isGameOver) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; ctx.fillRect(0, 0, width, height);

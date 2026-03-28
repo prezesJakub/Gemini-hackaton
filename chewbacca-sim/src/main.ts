@@ -121,24 +121,33 @@ document.addEventListener('DOMContentLoaded', () => {
       switch (action.action) {
         case 'fire_weapons':
           if (action.type === 'missiles') {
-            radar?.fireMissiles();
-            engine.addLog(`AI: MISSILE SALVO LAUNCHED!`, 'warning');
+            if (radar?.fireMissiles()) {
+              engine.addLog(`AI: MISSILE SALVO LAUNCHED!`, 'warning');
+            } else {
+              engine.addLog(`AI: Missile systems reloading! Please wait.`, 'info');
+            }
           } else {
             radar?.manualShoot();
             engine.addLog(`AI: Weapons systems engaged!`, 'info');
           }
           break;
         case 'activate_shields':
-          radar?.activateShield();
-          engine.addLog("AI: Shield generator pulsing!", "info");
+          if (radar?.activateShield()) {
+            engine.addLog("AI: Shield generator pulsing!", "info");
+          } else {
+            engine.addLog("AI: Shield energy not fully charged!", "info");
+          }
           break;
         case 'transfer_energy':
           engine.refuel();
           engine.addLog("AI: Hyperdrive fuel replenished!", "success");
           break;
         case 'overdrive_mode':
-          radar?.activateBoost();
-          engine.addLog("AI: Overdrive protocol active! Warp core engaged.", "warning");
+          if (radar?.activateBoost()) {
+            engine.addLog("AI: Overdrive protocol active! Warp core engaged.", "warning");
+          } else {
+            engine.addLog("AI: Overdrive needs cooldown!", "info");
+          }
           break;
         case 'repair_ship':
           engine.repairHull();
