@@ -133,6 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           break;
         case 'activate_shields':
+          radar?.activateShield();
           engine.addLog("AI: Shield generator pulsing!", "info");
           break;
         case 'transfer_energy':

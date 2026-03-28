@@ -42,6 +42,9 @@ export class Radar {
   isGameOver: boolean = false;
   onDamage?: (amount: number) => void;
 
+  public shieldActive: boolean = false;
+  private shieldTimer: number = 0;
+
   distanceTraveled: number = 0;
   kills: number = 0;
 
@@ -70,6 +73,11 @@ export class Radar {
     window.addEventListener('keyup', (e) => {
       this.keys[e.key.toLowerCase()] = false;
     });
+  }
+
+  public activateShield() {
+    this.shieldActive = true;
+    this.shieldTimer = 5.0;
   }
 
   public manualShoot() {
@@ -101,13 +109,11 @@ export class Radar {
       baseVelY = (this.crosshairOffset.y / mag) * projSpeed;
     }
 
-    // Odpalamy 4 potężne pociski w lekkim rozrzucie w stronę celownika
     const offsets = [-40, -15, 15, 40];
-    const spreadAngle = 0.15; // ok. 8 stopni rozrzutu między rakietami
+    const spreadAngle = 0.15;
 
     offsets.forEach((shift, i) => {
       this.projectileCounter++;
-      // Każda rakieta ma nieco inny kąt w stosunku do celownika
       const angleOffset = (i - 1.5) * spreadAngle; 
       const currentAngle = Math.atan2(baseVelY, baseVelX);
       const targetAngle = currentAngle + angleOffset;
@@ -126,6 +132,14 @@ export class Radar {
 
   public update(deltaTime: number) {
     if (this.isGameOver) return;
+
+    if (this.shieldTimer > 0) {
+      this.shieldTimer -= deltaTime;
+      if (this.shieldTimer <= 0) {
+        this.shieldTimer = 0;
+        this.shieldActive = false;
+      }
+    }
 
     let currentForwardSpeed = this.baseSpeed;
     if (this.keys['w']) currentForwardSpeed = this.boostSpeed;
@@ -148,8 +162,6 @@ export class Radar {
     this.crosshairOffset.y = Math.max(-maxOffsetY, Math.min(maxOffsetY, this.crosshairOffset.y));
 
     this.distanceTraveled = Math.max(0, this.startY - this.playerPosition.y);
-
-    // 2. Automatyczne Strzelanie zostało usunięte.
 
     this.spawnTimer -= deltaTime;
     if (this.spawnTimer <= 0) {
@@ -292,7 +304,7 @@ export class Radar {
       const s = this.ships[i];
       if (s.isEnemy) {
         if (Math.hypot(s.position.x - this.playerPosition.x, s.position.y - this.playerPosition.y) < pRadius + eRadius) {
-          if (this.onDamage) this.onDamage(30); 
+          if (!this.shieldActive && this.onDamage) this.onDamage(30); 
           this.explosions.push({ position: { x: s.position.x, y: s.position.y }, life: 0.6, maxLife: 0.6, radius: 40 });
           this.ships.splice(i, 1);
           continue;
@@ -318,7 +330,9 @@ export class Radar {
          }
       } else if (p.sourceId !== 'ally') { 
         if (Math.hypot(p.position.x - this.playerPosition.x, p.position.y - this.playerPosition.y) < projRadius + pRadius) {
-           if (this.onDamage) this.onDamage(20); 
+           if (!this.shieldActive && this.onDamage) {
+              this.onDamage(20); 
+           }
            this.projectiles.splice(i, 1);
            pDestroyed = true;
         }
@@ -401,12 +415,28 @@ export class Radar {
         ctx.fillText(s.id, s.position.x + 14, s.position.y + 4);
       }
     });
+
+    if (this.shieldActive) {
+      ctx.beginPath();
+      ctx.arc(this.playerPosition.x, this.playerPosition.y, 35, 0, Math.PI * 2);
+      const gradient = ctx.createRadialGradient(this.playerPosition.x, this.playerPosition.y, 25, this.playerPosition.x, this.playerPosition.y, 40);
+      gradient.addColorStop(0, 'rgba(0, 255, 255, 0.1)');
+      gradient.addColorStop(1, 'rgba(0, 255, 255, 0.6)');
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      ctx.strokeStyle = 'cyan';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
     ctx.restore(); 
 
     ctx.beginPath();
     ctx.moveTo(centerX, centerY - 15); ctx.lineTo(centerX - 12, centerY + 12);
     ctx.lineTo(centerX, centerY + 6); ctx.lineTo(centerX + 12, centerY + 12);
-    ctx.closePath(); ctx.fillStyle = '#00ffcc'; ctx.fill();
+    ctx.closePath(); 
+    ctx.fillStyle = this.shieldActive ? '#00ffff' : '#00ffcc'; 
+    ctx.fill();
 
     if (!this.isGameOver) {
       const cwX = centerX + this.crosshairOffset.x;
@@ -422,5 +452,10 @@ export class Radar {
     ctx.fillStyle = 'rgba(255, 150, 0, 0.9)'; ctx.fillText(`KILLS: ${this.kills}`, 220, 30);
     ctx.fillText(`HP:`, 20, 60); ctx.fillStyle = 'rgba(255, 50, 50, 0.5)'; ctx.fillRect(50, 48, 200, 16);
     ctx.fillStyle = this.playerHp > 30 ? '#00ffcc' : '#ff3333'; ctx.fillRect(50, 48, (this.playerHp / this.maxHp) * 200, 16);
+    
+    if (this.shieldActive) {
+      ctx.fillStyle = 'cyan';
+      ctx.fillText(`SHIELD ACTIVE: ${Math.ceil(this.shieldTimer)}s`, 20, 140);
+    }
   }
 }
