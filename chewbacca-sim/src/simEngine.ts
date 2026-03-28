@@ -15,7 +15,7 @@ export class SimEngine {
   private score: number = 0;
   private isRunning: boolean = false;
   private logs: LogEntry[] = [];
-  
+
   // Frequencies
   private fuelConsumptionRate: number = 0.5; // per tick
   private oxygenConsumptionRate: number = 0.8; // per tick
@@ -129,7 +129,7 @@ export class SimEngine {
       this.stop();
       this.notify('health');
       this.notify('status'); // Notify the UI that we are dead
-      return; 
+      return;
     }
 
     // Scoring system (10 points every second we are alive and moving)
@@ -206,7 +206,7 @@ export class SimEngine {
     this.addLog('ACTION: Refuelling sequence completed (+30%).', 'success');
     this.notify('fuel');
   }
-  
+
   public restoreOxygen() {
     if (this.oxygen >= 100 || !this.isRunning) return;
     this.oxygen = Math.min(100, this.oxygen + 40);
@@ -219,7 +219,7 @@ export class SimEngine {
     this.health = Math.max(0, this.health - amount);
     this.addLog(`WARNING: Hull damage detected! (${amount}%)`, 'warning');
     this.notify('health');
-    
+
     // Dead check is also needed here immediately, in case we drop below 0 outside tick()
     if (this.health <= 0) {
       this.health = 0;

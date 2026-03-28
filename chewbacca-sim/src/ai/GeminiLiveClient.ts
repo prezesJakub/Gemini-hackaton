@@ -33,12 +33,12 @@ export class GeminiLiveClient {
     const buffer = new ArrayBuffer(len);
     const view = new DataView(buffer);
     for (let i = 0; i < len; i++) {
-        view.setUint8(i, binaryString.charCodeAt(i));
+      view.setUint8(i, binaryString.charCodeAt(i));
     }
 
     const float32Array = new Float32Array(len / 2);
     for (let i = 0; i < len / 2; i++) {
-        float32Array[i] = view.getInt16(i * 2, true) / 32768.0;
+      float32Array[i] = view.getInt16(i * 2, true) / 32768.0;
     }
 
     const audioBuffer = this.audioContext.createBuffer(1, float32Array.length, 24000);
@@ -50,7 +50,7 @@ export class GeminiLiveClient {
 
     const currentTime = this.audioContext.currentTime;
     if (this.nextPlayTime < currentTime) {
-        this.nextPlayTime = currentTime;
+      this.nextPlayTime = currentTime;
     }
 
     source.start(this.nextPlayTime);
@@ -116,7 +116,7 @@ export class GeminiLiveClient {
 
   public sendToolResult(callId: string, result: any) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-    
+
     const toolRespMsg = {
       toolResponse: {
         functionResponses: [{
@@ -226,7 +226,7 @@ The player is your Pilot. You are loyal and professional, but you have a "badass
           if (part.functionCall && part.functionCall.name === "execute_ship_command") {
             const args = part.functionCall.args;
             if (args.action && this.onActionParsed) {
-                this.onActionParsed({ ...args, callId: part.functionCall.id } as ShipAction);
+              this.onActionParsed({ ...args, callId: part.functionCall.id } as ShipAction);
             }
           } else if (part.text) {
             this.responseBuffer += part.text;
