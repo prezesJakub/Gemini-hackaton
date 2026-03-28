@@ -4,7 +4,7 @@ import { Radar } from './radar';
 import { AudioCapture } from './audio/AudioCapture';
 import { GeminiLiveClient, type ShipAction } from './ai/GeminiLiveClient';
 
-const API_KEY = "AIzaSyCBUx-o0IKRX16lbh34zIzYWrb09ABNep0";
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 document.addEventListener('DOMContentLoaded', () => {
   // --- VIEWS ---
