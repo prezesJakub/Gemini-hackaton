@@ -3,13 +3,88 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>chewbacca-sim</title>
+  <title>Spaceship Control Panel</title>
 </head>
 
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <!-- Header -->
+    <header class="header panel" id="systemHeader">
+      <h1>[ CLV CHEWBACCA ] </h1>
+      <div class="status-indicator" id="systemStatus">SYSTEMS NOMINAL</div>
+    </header>
+
+    <!-- Left Panel (Life Support & Oxygen) -->
+    <aside class="panel left-panel">
+      <h2 class="panel-title">LIFE SUPPORT</h2>
+      
+      <!-- Oxygen Bar -->
+      <div class="widget">
+        <h3 class="widget-title">OXYGEN LEVEL</h3>
+        <div class="bar-container oxygen-bar" id="oxygenBarContainer">
+          <div class="bar-fill" id="oxygenBarFill" style="width: 100%;"></div>
+          <div class="bar-text" id="oxygenText">100%</div>
+        </div>
+      </div>
+
+      <!-- Action Buttons Left -->
+      <div class="widget">
+        <h3 class="widget-title">O2 CONTROLS</h3>
+        <div class="actions-grid left-actions">
+          <button class="btn-action repair-btn" id="btnRestoreOxygen" disabled>RESTORE OXYGEN</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center/Main Console (Actions / Radar area) -->
+    <main class="panel center-panel">
+      <h2 class="panel-title">COMMAND CONSOLE</h2>
+      
+      <!-- General Action Panel -->
+      <div class="widget flex-grow-widget">
+        <h3 class="widget-title">EMERGENCY PROTOCOLS</h3>
+        <div class="actions-grid center-actions">
+          <button class="btn-action repair-btn" id="btnRepairHull" disabled>REPAIR HULL</button>
+          <button class="btn-action repair-btn" id="btnRefuel" disabled>ENGAGE REFUELLER</button>
+          <button class="btn-action warning" id="btnFixEngine" disabled>RESTART EXT. ENGINES</button>
+          <button class="btn-action" id="btnToggleSim">PAUSE SIMULATION</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Panel (Event Log) -->
+    <aside class="panel right-panel log-panel">
+      <h2 class="panel-title">SYSTEM LOG</h2>
+      <div class="log-container" id="eventLog">
+        <!-- Logs go here -->
+        <div class="log-entry info"><span class="timestamp">[00:00:00]</span> SYSTEM BOOT SEQUENCE INITIATED...</div>
+      </div>
+    </aside>
+
+    <!-- Bottom Panel (Integrity & Fuel) -->
+    <footer class="panel bottom-panel">
+      <!-- Integrity (Health) -->
+      <div class="widget bottom-widget">
+        <h3 class="widget-title">HULL INTEGRITY</h3>
+        <div class="bar-container health-bar" id="healthBarContainer">
+          <div class="bar-fill" id="healthBarFill" style="width: 100%;"></div>
+          <div class="bar-text" id="healthText">100%</div>
+        </div>
+      </div>
+
+      <!-- Fuel -->
+      <div class="widget bottom-widget">
+        <h3 class="widget-title">HYPERDRIVE FUEL</h3>
+        <div class="bar-container fuel-bar" id="fuelBarContainer">
+          <div class="bar-fill" id="fuelBarFill" style="width: 100%;"></div>
+          <div class="bar-text" id="fuelText">100%</div>
+        </div>
+      </div>
+    </footer>
+  </div>
+  
   <script type="module" src="/src/main.ts"></script>
 </body>
 
