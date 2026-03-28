@@ -1,4 +1,4 @@
-import { Radar, type Ship, type Projectile } from './radar';
+import { Radar } from './radar';
 
 const appDiv = document.getElementById('app');
 if (appDiv) {
@@ -16,20 +16,6 @@ if (appDiv) {
   
   // Konstrukcja radaru
   const radar = new Radar(canvas);
-
-  // Dodanie przykładowych podmiotów testowych (Wrogowie i pociski)
-  const mockShips: Ship[] = [
-    { id: 'TIE-01', position: { x: 1700, y: 1400 }, velocity: { x: -50, y: 20 }, isEnemy: true },
-    { id: 'TIE-02', position: { x: 1300, y: 1600 }, velocity: { x: 40, y: -30 }, isEnemy: true },
-    { id: 'ALLY-X', position: { x: 1600, y: 1700 }, velocity: { x: -10, y: -10 }, isEnemy: false },
-  ];
-
-  const mockProjectiles: Projectile[] = [
-    { id: 'P-1', position: { x: 1550, y: 1450 }, velocity: { x: 400, y: -200 }, sourceId: 'player' },
-    { id: 'P-2', position: { x: 1450, y: 1550 }, velocity: { x: -300, y: 300 }, sourceId: 'TIE-02' }
-  ];
-
-  radar.updateEntities(mockShips, mockProjectiles);
 
   // Zmiana rozmiaru okna
   window.addEventListener('resize', () => {
