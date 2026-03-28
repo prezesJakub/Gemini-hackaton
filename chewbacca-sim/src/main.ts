@@ -39,47 +39,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const oxygenText = document.getElementById('oxygenText') as HTMLElement;
   const oxygenBarContainer = document.getElementById('oxygenBarContainer') as HTMLElement;
   const eventLog = document.getElementById('eventLog') as HTMLElement;
-  const btnRepairHull = document.getElementById('btnRepairHull') as HTMLButtonElement;
-  const btnRefuel = document.getElementById('btnRefuel') as HTMLButtonElement;
-  const btnToggleSim = document.getElementById('btnToggleSim') as HTMLButtonElement;
-  const btnFixEngine = document.getElementById('btnFixEngine') as HTMLButtonElement;
-  const btnRestoreOxygen = document.getElementById('btnRestoreOxygen') as HTMLButtonElement;
 
-  // --- AI VOICE HUD INJECTION ---
-  const rightPanel = document.querySelector('.right-panel') as HTMLElement;
-  if (rightPanel) {
-    const aiHud = document.createElement('div');
-    aiHud.innerHTML = `
-      <div class="hud ai-hud-widget" style="padding: 10px; background: rgba(0, 20, 20, 0.8); border: 1px solid #0ff; margin-bottom: 15px;">
-        <div class="panel">
-          <div class="status-indicator" style="font-size: 0.8em; margin-bottom: 5px;">
-            AI: <span id="ai-status" class="status-disconnected">Rozłączono</span>
-            <select id="lang-select" class="cyber-select" style="margin-left: 5px; font-size: 0.9em; background: #000; color: #0ff; border: 1px solid #0ff;">
-               <option value="English" selected>EN</option>
-               <option value="Polish">PL</option>
-               <option value="Spanish">ES</option>
-               <option value="German">DE</option>
-               <option value="Japanese">JA</option>
-            </select>
-          </div>
-          <button id="start-ai-btn" class="cyber-button" style="width: 100%; font-size: 0.7em; padding: 5px;">START AI COMM</button>
-        </div>
-        <div class="logs" style="max-height: 100px; overflow-y: auto; font-size: 0.75em; margin-top: 5px;">
-          <div id="ai-action-log" style="color: #0ff; opacity: 0.7;">Waiting for voice...</div>
-        </div>
-      </div>
-    `;
-    rightPanel.prepend(aiHud);
-  }
-
+  // --- AI ASSISTANT ELEMENTS (Now in the bottom right context) ---
   const startAiBtn = document.getElementById('start-ai-btn') as HTMLButtonElement;
   const aiStatusSpan = document.getElementById('ai-status') as HTMLSpanElement;
   const aiActionLog = document.getElementById('ai-action-log') as HTMLDivElement;
   const langSelect = document.getElementById('lang-select') as HTMLSelectElement;
+  const btnToggleSim = document.getElementById('btnToggleSim') as HTMLButtonElement;
 
   // --- STATE ---
   let engine: SimEngine | null = null;
-  let simulatedButtonInterval: number | null = null;
   let hasHandledDeath = false;
   let radar: Radar | null = null;
   let radarLoopId: number | null = null;
@@ -123,53 +92,54 @@ document.addEventListener('DOMContentLoaded', () => {
     aiClient.setLanguage(newLang);
     aiClient.disconnect();
     audioCapture.stop();
-    startAiBtn.textContent = 'RE-START AI';
+    startAiBtn.textContent = 'RE-INITIALIZE';
     startAiBtn.disabled = false;
-    aiStatusSpan.textContent = "Restart required";
+    aiStatusSpan.textContent = "OFFLINE";
     aiStatusSpan.className = 'status-disconnected';
   });
 
   aiClient.onStatusChange = (status) => {
-    aiStatusSpan.textContent = status;
+    aiStatusSpan.textContent = (status === 'Połączono' || status === 'Sesja gotowa') ? 'ONLINE' : status.toUpperCase();
     aiStatusSpan.className = (status === 'Połączono' || status === 'Sesja gotowa') ? 'status-connected' : 'status-disconnected';
-    if (status === 'Połączono') {
-      startAiBtn.textContent = 'AI LISTENING';
+    if (status === 'Połączono' || status === 'Sesja gotowa') {
+      startAiBtn.textContent = 'COMM-LINK ACTIVE';
       startAiBtn.disabled = true;
-    } else if (status === 'Rozłączono' || status === 'Błąd połączenia') {
-      startAiBtn.textContent = 'START AI COMM';
+    } else {
+      startAiBtn.textContent = 'INITIALIZE COMM-LINK';
       startAiBtn.disabled = false;
     }
   };
 
   aiClient.onActionParsed = (action: ShipAction) => {
     const time = new Date().toLocaleTimeString();
-    const speech = action.recognized_speech ? `"${action.recognized_speech}"` : "???";
+    const speech = action.recognized_speech ? `"${action.recognized_speech}"` : "";
     
     const logEntry = document.createElement('div');
-    logEntry.style.borderBottom = "1px solid rgba(0, 255, 255, 0.2)";
+    logEntry.style.borderBottom = "1px solid rgba(0, 255, 255, 0.1)";
     logEntry.style.padding = "2px 0";
-    logEntry.innerHTML = `[${time}] ${speech} -> <b>${action.action}</b>`;
+    logEntry.innerHTML = `<span style="opacity:0.5">${time}</span> ${speech} -> <b>${action.action}</b>`;
     aiActionLog.prepend(logEntry);
-    if (aiActionLog.childElementCount > 5) aiActionLog.lastElementChild?.remove();
+    if (aiActionLog.childElementCount > 4) aiActionLog.lastElementChild?.remove();
 
     if (engine && !engine.isDead()) {
       switch (action.action) {
         case 'fire_weapons':
-          engine.addLog(`AI: Executing ${action.type || 'primary'} fire!`, 'info');
+          radar?.manualShoot();
+          engine.addLog(`AI: Weapons systems engaged! (${action.type || 'primary'})`, 'info');
           break;
         case 'activate_shields':
-          engine.addLog("AI: Shields active!", "info");
+          engine.addLog("AI: Shield generator pulsing!", "info");
           break;
         case 'transfer_energy':
           engine.refuel();
-          engine.addLog("AI: Energy transferred!", "success");
+          engine.addLog("AI: Hyperdrive fuel replenished!", "success");
           break;
         case 'overdrive_mode':
-          engine.addLog("AI: OVERDRIVE ENGAGED!", "warning");
+          engine.addLog("AI: Overdrive protocol active!", "warning");
           break;
         case 'repair_ship':
           engine.repairHull();
-          engine.addLog("AI: Repairs in progress...", "success");
+          engine.addLog("AI: Critical hull patching initiated.", "success");
           break;
       }
     }
@@ -271,15 +241,6 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       radarLoopId = requestAnimationFrame(gameLoop);
     }
-
-    if (simulatedButtonInterval) clearInterval(simulatedButtonInterval);
-    simulatedButtonInterval = window.setInterval(() => {
-      if (!engine || !engine.isActive() || engine.isDead()) return;
-      btnRepairHull.disabled = Math.random() > 0.5;
-      btnRefuel.disabled = Math.random() > 0.5;
-      btnRestoreOxygen.disabled = Math.random() > 0.4;
-      btnFixEngine.disabled = Math.random() > 0.8;
-    }, 2000);
   }
 
   // --- MENU LISTENERS ---
@@ -359,10 +320,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateStatusUI() {
      if (!engine) return;
      if (!engine.isActive() && !engine.isDead()) {
-       btnToggleSim.textContent = 'RESUME SIMULATION';
+       btnToggleSim.textContent = 'RESUME';
        statusIndicator.textContent = 'SIMULATION PAUSED';
      } else if (!engine.isDead()) {
-       btnToggleSim.textContent = 'PAUSE SIMULATION';
+       btnToggleSim.textContent = 'PAUSE';
        checkNormalStatus();
      }
   }
@@ -381,9 +342,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => { showGameOver(finalScore, cause); }, 2500);
   }
 
-  btnRepairHull.addEventListener('click', () => { engine?.repairHull(); });
-  btnRefuel.addEventListener('click', () => { engine?.refuel(); });
-  btnRestoreOxygen.addEventListener('click', () => { engine?.restoreOxygen(); });
   btnToggleSim.addEventListener('click', () => {
     if (!engine) return;
     if (engine.isActive()) engine.pause(); else engine.start();

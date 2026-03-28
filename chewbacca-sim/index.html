@@ -110,14 +110,26 @@
           </div>
         </div>
 
-        <div class="bottom-actions-container widget">
-          <h3 class="widget-title">EMERGENCY PROTOCOLS (O2 / ENG)</h3>
-          <div class="actions-grid bottom-actions">
-            <button class="btn-action repair-btn" id="btnRepairHull" disabled>REPAIR HULL</button>
-            <button class="btn-action repair-btn" id="btnRefuel" disabled>ENGAGE REFUELLER</button>
-            <button class="btn-action repair-btn" id="btnRestoreOxygen" disabled>RESTORE OXYGEN</button>
-            <button class="btn-action warning" id="btnFixEngine" disabled>RESTART EXT. ENGINES</button>
-            <button class="btn-action" id="btnToggleSim">PAUSE SIMULATION</button>
+        <div class="bottom-actions-container widget" id="aiAssistantContainer">
+          <h3 class="widget-title">AI COMBAT ASSISTANT (CHEVBACCA)</h3>
+          <div class="ai-controls-layout">
+            <div class="ai-status-bar">
+               <span id="ai-status" class="status-disconnected">OFFLINE</span>
+               <div>
+                 <button id="btnToggleSim" class="cyber-button" style="font-size: 0.7em; margin-right: 5px;">PAUSE</button>
+                 <select id="lang-select" class="cyber-select">
+                    <option value="English" selected>EN</option>
+                    <option value="Polish">PL</option>
+                    <option value="Spanish">ES</option>
+                    <option value="German">DE</option>
+                    <option value="Japanese">JA</option>
+                 </select>
+               </div>
+            </div>
+            <button id="start-ai-btn" class="btn-action">INITIALIZE COMM-LINK</button>
+            <div class="ai-transcript" id="ai-action-log">
+               <i>Voice commands active...</i>
+            </div>
           </div>
         </div>
       </footer>

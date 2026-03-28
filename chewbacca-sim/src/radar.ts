@@ -79,6 +79,26 @@ export class Radar {
     });
   }
 
+  public manualShoot() {
+    this.projectileCounter++;
+    
+    const projSpeed = 800; // Super szybkie pestki
+    const mag = Math.hypot(this.crosshairOffset.x, this.crosshairOffset.y);
+    let velX = 0;
+    let velY = -projSpeed;
+    if (mag !== 0) {
+      velX = (this.crosshairOffset.x / mag) * projSpeed;
+      velY = (this.crosshairOffset.y / mag) * projSpeed;
+    }
+
+    this.projectiles.push({
+      id: `P-${this.projectileCounter}`,
+      position: { x: this.playerPosition.x, y: this.playerPosition.y },
+      velocity: { x: velX, y: velY },
+      sourceId: 'player'
+    });
+  }
+
   public update(deltaTime: number) {
     if (this.isGameOver) return; // Zamraża ekran po padnięciu
 
@@ -113,23 +133,7 @@ export class Radar {
       this.autoShootCooldown -= deltaTime;
     }
     if (this.autoShootCooldown <= 0) {
-      this.projectileCounter++;
-      
-      const projSpeed = 800; // Super szybkie pestki
-      const mag = Math.hypot(this.crosshairOffset.x, this.crosshairOffset.y);
-      let velX = 0;
-      let velY = -projSpeed;
-      if (mag !== 0) {
-        velX = (this.crosshairOffset.x / mag) * projSpeed;
-        velY = (this.crosshairOffset.y / mag) * projSpeed;
-      }
-
-      this.projectiles.push({
-        id: `P-${this.projectileCounter}`,
-        position: { x: this.playerPosition.x, y: this.playerPosition.y },
-        velocity: { x: velX, y: velY },
-        sourceId: 'player'
-      });
+      this.manualShoot();
       this.autoShootCooldown = 2.0; // Strzał znów za 2.0 sekundy
     }
 
@@ -320,7 +324,7 @@ export class Radar {
       const s = this.ships[i];
       if (s.isEnemy) {
         if (Math.hypot(s.position.x - this.playerPosition.x, s.position.y - this.playerPosition.y) < pRadius + eRadius) {
-          if (this.onDamage) this.onDamage(30); // Zgłoszenie dmg z zewnątrz
+          if (this.onDamage) this.onDamage(30); 
           
           this.explosions.push({
             position: { x: s.position.x, y: s.position.y },
@@ -356,15 +360,14 @@ export class Radar {
              this.ships.splice(j, 1);
              this.projectiles.splice(i, 1);
              pDestroyed = true;
-             this.distanceTraveled += 200; // Bonus do Scoru za morderstwo!
-             this.kills++; // +1 Kill
+             this.distanceTraveled += 200; 
+             this.kills++; 
              break;
            }
          }
-      } else if (p.sourceId !== 'ally') { // Tylko pociski wrogów trafiają na dystans statku gracza
-         // Pocisk wroga trafiający w drona gracza
+      } else if (p.sourceId !== 'ally') { 
         if (Math.hypot(p.position.x - this.playerPosition.x, p.position.y - this.playerPosition.y) < projRadius + pRadius) {
-           if (this.onDamage) this.onDamage(20); // Zgłoszenie dmg z zewnątrz
+           if (this.onDamage) this.onDamage(20); 
            this.projectiles.splice(i, 1);
            pDestroyed = true;
         }
@@ -372,9 +375,6 @@ export class Radar {
       
       if (pDestroyed) continue;
     }
-
-    // System GAME OVER obsługiwany jest teraz zewnętrznie.
-    // HP updatowane regularnie z silnika do Radar.playerHp
 
     // 5.5 Odświeżanie animacji wybuchów
     for (let i = this.explosions.length - 1; i >= 0; i--) {
@@ -438,7 +438,6 @@ export class Radar {
       ctx.moveTo(p.position.x, p.position.y);
       ctx.lineTo(p.position.x - p.velocity.x * 0.05, p.position.y - p.velocity.y * 0.05);
       
-      // Gracz na zółto, sojusznik na cyjan/niebieski, wrogi na różowy
       if (p.sourceId === 'player') ctx.strokeStyle = '#ffb300';
       else if (p.sourceId === 'ally') ctx.strokeStyle = '#33ccff';
       else ctx.strokeStyle = '#ff3366';
@@ -449,16 +448,15 @@ export class Radar {
 
     // Zjawiska (Wybuchy)
     this.explosions.forEach(exp => {
-      const progress = 1 - (exp.life / exp.maxLife); // od 0 do 1 (skala)
+      const progress = 1 - (exp.life / exp.maxLife); 
       const currentRadius = exp.radius * Math.max(0.1, progress);
-      const alpha = Math.max(0, exp.life / exp.maxLife); // od 1 do 0 zanikanie
+      const alpha = Math.max(0, exp.life / exp.maxLife); 
       
       ctx.beginPath();
       ctx.arc(exp.position.x, exp.position.y, currentRadius, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(255, 100, 0, ${alpha})`;
       ctx.fill();
       
-      // Jądro wybuchu (żółte)
       ctx.beginPath();
       ctx.arc(exp.position.x, exp.position.y, currentRadius * 0.6, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(255, 200, 50, ${alpha})`;
@@ -477,7 +475,7 @@ export class Radar {
         ctx.font = '12px monospace';
         ctx.fillText(s.id, s.position.x + 14, s.position.y + 4);
       } else {
-        ctx.fillStyle = '#33ccff'; // Niebieskie pancerze sojuszników
+        ctx.fillStyle = '#33ccff'; 
         ctx.fill();
         ctx.fillStyle = 'rgba(51, 204, 255, 0.8)';
         ctx.font = '12px monospace';
@@ -485,7 +483,7 @@ export class Radar {
       }
     });
 
-    ctx.restore(); // Poza transformacją radaru - rysowanie UI gracza zawieszonego na ekranie!
+    ctx.restore(); 
 
     // Gracz
     ctx.beginPath();
@@ -548,7 +546,5 @@ export class Radar {
     ctx.font = '12px monospace';
     ctx.fillText('Move: W/S/A/D | Aim: ARROW KEYS', 20, 90);
     ctx.fillText('AutoShoot active.', 20, 110);
-
-
-}
+  }
 }
