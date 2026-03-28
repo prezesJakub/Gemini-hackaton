@@ -5,17 +5,17 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CLV CHEWBACCA - Cockpit Simulation</title>
+  <title>CHEV'BACCA SIMULATOR - Cockpit Simulation</title>
 </head>
 
 <body>
   <div id="app">
-    
+
     <!-- MAIN MENU VIEW -->
     <div id="mainMenuView" class="menu-container">
-      <h1 class="game-title">CLV CHEWBACCA</h1>
-      <p class="subtitle">DEEP SPACE SURVIVAL SIMULATOR</p>
-      
+      <h1 class="game-title">CHEV'BACCA SIMULATOR</h1>
+      <p class="subtitle">VOID MARAUDER SHIP</p>
+
       <div class="menu-buttons">
         <button class="btn-menu" id="btnStartGame">START MISSION</button>
         <button class="btn-menu" id="btnViewHighscores">HIGHSCORES</button>
@@ -25,11 +25,11 @@
     <!-- HIGHSCORES VIEW -->
     <div id="highscoresView" class="menu-container hidden">
       <h1 class="game-title">HALL OF FAME</h1>
-      
+
       <div class="highscores-list" id="highscoresList">
         <!-- JS will populate this -->
       </div>
-      
+
       <button class="btn-menu mt-4" id="btnBackToMenu">BACK TO MENU</button>
     </div>
 
@@ -37,7 +37,7 @@
     <div id="gameOverView" class="menu-container hidden">
       <h1 class="game-title danger-text">MISSION FAILED</h1>
       <p class="subtitle" id="gameOverCauseDisplay">HULL INTEGRITY COMPROMISED. SHIP DESTROYED.</p>
-      
+
       <div class="final-score-box">
         <h3>FINAL SCORE</h3>
         <div class="big-score" id="gameOverScoreDisplay">0</div>
@@ -48,13 +48,13 @@
         <input type="text" id="playerNameInput" maxlength="15" placeholder="NICKNAME" autocomplete="off" />
         <button class="btn-menu" id="btnSubmitScore">SUBMIT REPORT</button>
       </div>
-      
+
       <button class="btn-menu mt-4" id="btnReturnToMenu">RETURN TO FLEET (MENU)</button>
     </div>
 
     <!-- GAME DASHBOARD VIEW (COCKPIT LAYOUT) -->
     <div id="gameDashboardView" class="dashboard-grid hidden">
-      
+
       <!-- Top/Center Panel: Space Combat Radar Screen -->
       <main class="panel center-panel" id="radarContainer">
         <!-- Canvas injected here by Radar -->
@@ -80,7 +80,7 @@
 
       <!-- Bottom Panel: Resource Bars and Emergency Protocols -->
       <footer class="panel bottom-panel">
-        
+
         <div class="bottom-stats-container">
           <!-- Integrity (Health) -->
           <div class="widget bottom-widget">
@@ -99,7 +99,7 @@
               <div class="bar-text" id="fuelText">100%</div>
             </div>
           </div>
-          
+
           <!-- Oxygen -->
           <div class="widget bottom-widget">
             <h3 class="widget-title">OXYGEN LEVEL</h3>
@@ -114,17 +114,17 @@
           <h3 class="widget-title">AI COMBAT ASSISTANT (CHEVBACCA)</h3>
           <div class="ai-controls-layout">
             <div class="ai-status-bar">
-               <span id="ai-status" class="status-disconnected">OFFLINE</span>
-               <div>
-                 <button id="btnToggleSim" class="cyber-button">INITIALIZING...</button>
-                 <select id="lang-select" class="cyber-select">
-                    <option value="English" selected>EN</option>
-                    <option value="Polish">PL</option>
-                    <option value="Spanish">ES</option>
-                    <option value="German">DE</option>
-                    <option value="Japanese">JA</option>
-                 </select>
-               </div>
+              <span id="ai-status" class="status-disconnected">OFFLINE</span>
+              <div>
+                <button id="btnToggleSim" class="cyber-button">INITIALIZING...</button>
+                <select id="lang-select" class="cyber-select">
+                  <option value="English" selected>EN</option>
+                  <option value="Polish">PL</option>
+                  <option value="Spanish">ES</option>
+                  <option value="German">DE</option>
+                  <option value="Japanese">JA</option>
+                </select>
+              </div>
             </div>
             <button id="start-ai-btn" class="btn-action">INITIALIZE COMM-LINK</button>
           </div>
@@ -133,7 +133,7 @@
 
     </div>
   </div>
-  
+
   <script type="module" src="/src/main.ts"></script>
 </body>
 
