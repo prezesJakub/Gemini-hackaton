@@ -1,6 +1,11 @@
 import './style.css';
 import { SimEngine } from './simEngine';
 import { Radar } from './radar';
+import { AudioCapture } from './audio/AudioCapture';
+import { GeminiLiveClient, type ShipAction } from './ai/GeminiLiveClient';
+
+// Wpisz tutaj swój klucz API na czas hackatonu
+const API_KEY = "AIzaSyCBUx-o0IKRX16lbh34zIzYWrb09ABNep0";
 
 document.addEventListener('DOMContentLoaded', () => {
   // --- VIEWS ---
@@ -20,12 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const playerNameInput = document.getElementById('playerNameInput') as HTMLInputElement;
   const btnSubmitScore = document.getElementById('btnSubmitScore') as HTMLButtonElement;
   const highscoresList = document.getElementById('highscoresList') as HTMLElement;
+  const gameOverCauseDisplay = document.getElementById('gameOverCauseDisplay') as HTMLElement;
 
   // --- GAME UI ELEMENTS ---
   const header = document.getElementById('systemHeader') as HTMLElement;
   const statusIndicator = document.getElementById('systemStatus') as HTMLElement;
 
-  
   const healthBarFill = document.getElementById('healthBarFill') as HTMLElement;
   const healthText = document.getElementById('healthText') as HTMLElement;
   const healthBarContainer = document.getElementById('healthBarContainer') as HTMLElement;
@@ -46,6 +51,39 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnFixEngine = document.getElementById('btnFixEngine') as HTMLButtonElement;
   const btnRestoreOxygen = document.getElementById('btnRestoreOxygen') as HTMLButtonElement;
 
+  // --- AI VOICE HUD INJECTION ---
+  // We find the right-panel and prepend our Voice HUD
+  const rightPanel = document.querySelector('.right-panel') as HTMLElement;
+  if (rightPanel) {
+    const aiHud = document.createElement('div');
+    aiHud.innerHTML = `
+      <div class="hud ai-hud-widget" style="padding: 10px; background: rgba(0, 20, 20, 0.8); border: 1px solid #0ff; margin-bottom: 15px;">
+        <div class="panel">
+          <div class="status-indicator" style="font-size: 0.8em; margin-bottom: 5px;">
+            AI: <span id="ai-status" class="status-disconnected">Rozłączono</span>
+            <select id="lang-select" class="cyber-select" style="margin-left: 5px; font-size: 0.9em; background: #000; color: #0ff; border: 1px solid #0ff;">
+               <option value="English" selected>EN</option>
+               <option value="Polish">PL</option>
+               <option value="Spanish">ES</option>
+               <option value="German">DE</option>
+               <option value="Japanese">JA</option>
+            </select>
+          </div>
+          <button id="start-ai-btn" class="cyber-button" style="width: 100%; font-size: 0.7em; padding: 5px;">START AI COMM</button>
+        </div>
+        <div class="logs" style="max-height: 100px; overflow-y: auto; font-size: 0.75em; margin-top: 5px;">
+          <div id="ai-action-log" style="color: #0ff; opacity: 0.7;">Waiting for voice...</div>
+        </div>
+      </div>
+    `;
+    rightPanel.prepend(aiHud);
+  }
+
+  const startAiBtn = document.getElementById('start-ai-btn') as HTMLButtonElement;
+  const aiStatusSpan = document.getElementById('ai-status') as HTMLSpanElement;
+  const aiActionLog = document.getElementById('ai-action-log') as HTMLDivElement;
+  const langSelect = document.getElementById('lang-select') as HTMLSelectElement;
+
   // --- STATE ---
   let engine: SimEngine | null = null;
   let simulatedButtonInterval: number | null = null;
@@ -54,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let radar: Radar | null = null;
   let radarLoopId: number | null = null;
   
-  const gameOverCauseDisplay = document.getElementById('gameOverCauseDisplay') as HTMLElement;
   const radarContainer = document.getElementById('radarContainer');
   let radarCanvas: HTMLCanvasElement | null = null;
   let radarCtx: CanvasRenderingContext2D | null = null;
@@ -69,7 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
     radarContainer.appendChild(radarCanvas);
     radarCtx = radarCanvas.getContext('2d');
     
-    // ResizeObserver automatycznie wykryje zmianę display: none -> grid
     new ResizeObserver(() => {
       if (radarCanvas && radarContainer) {
         const rect = radarContainer.getBoundingClientRect();
@@ -79,7 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }).observe(radarContainer);
   }
   
-  // Simple local highscores array
   let highscores: {name: string, score: number}[] = [
     { name: 'Han Solo', score: 12500 },
     { name: 'Lando', score: 8400 },
@@ -88,13 +123,88 @@ document.addEventListener('DOMContentLoaded', () => {
     { name: 'Cadet', score: 500 }
   ];
 
+  // --- AI INITIALIZATION ---
+  const audioCapture = new AudioCapture();
+  const aiClient = new GeminiLiveClient(API_KEY);
+
+  langSelect.addEventListener('change', (e) => {
+    const newLang = (e.target as HTMLSelectElement).value;
+    aiClient.setLanguage(newLang);
+    aiClient.disconnect();
+    audioCapture.stop();
+    startAiBtn.textContent = 'RE-START AI';
+    startAiBtn.disabled = false;
+    aiStatusSpan.textContent = "Restart required";
+    aiStatusSpan.className = 'status-disconnected';
+  });
+
+  aiClient.onStatusChange = (status) => {
+    aiStatusSpan.textContent = status;
+    aiStatusSpan.className = (status === 'Połączono' || status === 'Sesja gotowa') ? 'status-connected' : 'status-disconnected';
+    if (status === 'Połączono') {
+      startAiBtn.textContent = 'AI LISTENING';
+      startAiBtn.disabled = true;
+    } else if (status === 'Rozłączono' || status === 'Błąd połączenia') {
+      startAiBtn.textContent = 'START AI COMM';
+      startAiBtn.disabled = false;
+    }
+  };
+
+  aiClient.onActionParsed = (action: ShipAction) => {
+    const time = new Date().toLocaleTimeString();
+    const speech = action.recognized_speech ? `"${action.recognized_speech}"` : "???";
+    
+    const logEntry = document.createElement('div');
+    logEntry.style.borderBottom = "1px solid rgba(0, 255, 255, 0.2)";
+    logEntry.style.padding = "2px 0";
+    logEntry.innerHTML = `[${time}] ${speech} -> <b>${action.action}</b>`;
+    aiActionLog.prepend(logEntry);
+    if (aiActionLog.childElementCount > 5) aiActionLog.lastElementChild?.remove();
+
+    // MAP AI ACTIONS TO ENGINE
+    if (engine && !engine.isDead()) {
+      switch (action.action) {
+        case 'fire_weapons':
+          // Weapons logic in engine?
+          engine.addLog(`AI: Executing ${action.type || 'primary'} fire!`, 'action');
+          // If we had specialized weapon methods, call them here
+          break;
+        case 'activate_shields':
+          engine.addLog("AI: Shields active!", "action");
+          // maybe reduce damage taken for a while?
+          break;
+        case 'transfer_energy':
+          engine.refuel();
+          engine.addLog("AI: Energy transferred!", "success");
+          break;
+        case 'overdrive_mode':
+          engine.addLog("AI: OVERDRIVE ENGAGED!", "warning");
+          // speed up?
+          break;
+        case 'repair_ship':
+          engine.repairHull();
+          engine.addLog("AI: Repairs in progress...", "success");
+          break;
+      }
+    }
+  };
+
+  startAiBtn.addEventListener('click', async () => {
+    startAiBtn.textContent = 'LINKING...';
+    await audioCapture.start();
+    audioCapture.onAudioData = (base64Data) => {
+      aiClient.sendAudioChunk(base64Data);
+    };
+    aiClient.connect();
+  });
+
   // --- VIEW ROUTING ---
   function hideAllViews() {
     mainMenuView.classList.add('hidden');
     highscoresView.classList.add('hidden');
     gameOverView.classList.add('hidden');
     gameDashboardView.classList.add('hidden');
-    gameDashboardView.classList.remove('dashboard-grid'); // remove grid structure when hidden
+    gameDashboardView.classList.remove('dashboard-grid');
   }
 
   function showMenu() {
@@ -112,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hideAllViews();
     gameOverScoreDisplay.textContent = `${finalScore}`;
     gameOverCauseDisplay.textContent = cause;
-    playerNameInput.value = ''; // clear previous
+    playerNameInput.value = '';
     playerNameInput.disabled = false;
     btnSubmitScore.disabled = false;
     btnSubmitScore.textContent = 'SUBMIT REPORT';
@@ -122,45 +232,32 @@ document.addEventListener('DOMContentLoaded', () => {
   function startGame() {
     hideAllViews();
     gameDashboardView.classList.remove('hidden');
-    gameDashboardView.classList.add('dashboard-grid'); // restore grid
+    gameDashboardView.classList.add('dashboard-grid');
 
-    // Clean up old log
     eventLog.innerHTML = '';
     hasHandledDeath = false;
     
-    // Create new fresh engine
     engine = new SimEngine();
-
-    // Subscribe UI
     engine.subscribe((eventType) => {
       if (!engine) return;
       switch (eventType) {
-        case 'health':
-          updateHealthUI();
-          break;
-        case 'fuel':
-          updateFuelUI();
-          break;
-        case 'oxygen':
-          updateOxygenUI();
-          break;
-        case 'log':
-          updateLogUI();
-          break;
+        case 'health': updateHealthUI(); break;
+        case 'fuel': updateFuelUI(); break;
+        case 'oxygen': updateOxygenUI(); break;
+        case 'log': updateLogUI(); break;
         case 'status':
           updateStatusUI();
           if (engine.isDead()) {
-             let cause = 'AWARIA SYSTEMÓW';
-             if (engine.getHealth() <= 0) cause = 'KRYTYCZNE USZKODZENIA KADŁUBA';
-             if (engine.getOxygen() <= 0) cause = 'UDUSZENIE ZAŁOGI (BRAK O2)';
-             if (engine.getFuel() <= 0) cause = 'BRAK PALIWA';
+             let cause = 'SYSTEM FAILURE';
+             if (engine.getHealth() <= 0) cause = 'HULL INTEGRITY COMPROMISED';
+             if (engine.getOxygen() <= 0) cause = 'ASPHYXIATION (O2 DEPLETED)';
+             if (engine.getFuel() <= 0) cause = 'POWER FAILURE (OUT OF FUEL)';
              handleDeath(cause);
           }
           break;
       }
     });
 
-    // Initialize UI
     updateHealthUI();
     updateFuelUI();
     updateOxygenUI();
@@ -168,7 +265,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     engine.start();
 
-    // Reset Radar inside game loop
     if (radarLoopId !== null) cancelAnimationFrame(radarLoopId);
     if (radarCanvas && radarCtx) {
       radar = new Radar(radarCanvas);
@@ -177,18 +273,13 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       
       let lastTime = performance.now();
-      
       const gameLoop = (currentTime: number) => {
         const deltaTime = (currentTime - lastTime) / 1000;
         lastTime = currentTime;
-        
         if (radar && engine) {
            radar.playerHp = engine.getHealth();
            radar.isGameOver = engine.isDead();
-           
-           if (engine.isActive() && !engine.isDead()) {
-             radar.update(deltaTime);
-           }
+           if (engine.isActive() && !engine.isDead()) radar.update(deltaTime);
            if (radarCtx) radar.render(radarCtx);
         }
         radarLoopId = requestAnimationFrame(gameLoop);
@@ -196,7 +287,6 @@ document.addEventListener('DOMContentLoaded', () => {
       radarLoopId = requestAnimationFrame(gameLoop);
     }
 
-    // Setup random button availability simulator
     if (simulatedButtonInterval) clearInterval(simulatedButtonInterval);
     simulatedButtonInterval = window.setInterval(() => {
       if (!engine || !engine.isActive() || engine.isDead()) return;
@@ -215,15 +305,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnSubmitScore.addEventListener('click', () => {
     if (!engine) return;
-    const name = playerNameInput.value.trim().toUpperCase() || 'UNKNOWN CD';
+    const name = playerNameInput.value.trim().toUpperCase() || 'CADET';
     const score = radar ? Math.round(radar.distanceTraveled / 10) : engine.getScore();
-    
-    // Add and sort
     highscores.push({ name, score });
     highscores.sort((a, b) => b.score - a.score);
-    // Keep top 10
     highscores = highscores.slice(0, 10);
-    
     btnSubmitScore.disabled = true;
     playerNameInput.disabled = true;
     btnSubmitScore.textContent = 'SAVED';
@@ -239,13 +325,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- GAME UI SYNC ---
   function updateHealthUI() {
     if (!engine) return;
     const hp = engine.getHealth();
     healthBarFill.style.width = `${hp}%`;
     healthText.textContent = `${Math.floor(hp)}%`;
-
     if (hp <= 30) {
       healthBarContainer.classList.add('danger');
       header.classList.add('critical-status');
@@ -261,13 +345,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const fuel = engine.getFuel();
     fuelBarFill.style.width = `${fuel}%`;
     fuelText.textContent = `${Math.floor(fuel)}%`;
-    if (fuel <= 20) {
-      fuelBarFill.style.background = 'linear-gradient(90deg, #aa4400, #ffaa00)';
-      gasBarContainer.style.boxShadow = '0 0 10px #ffaa00';
-    } else {
-      fuelBarFill.style.background = ''; 
-      gasBarContainer.style.boxShadow = '';
-    }
   }
 
   function updateOxygenUI() {
@@ -275,31 +352,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const o2 = engine.getOxygen();
     oxygenBarFill.style.width = `${o2}%`;
     oxygenText.textContent = `${Math.floor(o2)}%`;
-    
-    if (o2 <= 30) {
-      oxygenBarContainer.classList.add('danger');
-    } else {
-      oxygenBarContainer.classList.remove('danger');
-    }
+    if (o2 <= 30) oxygenBarContainer.classList.add('danger');
+    else oxygenBarContainer.classList.remove('danger');
   }
 
   function updateLogUI() {
     if (!engine) return;
     const logs = engine.getLogs();
     if (logs.length === 0) return;
-
     const latest = logs[logs.length - 1];
-    
     const entry = document.createElement('div');
     entry.className = `log-entry ${latest.type}`;
-    
     const timeSpan = document.createElement('span');
     timeSpan.className = 'timestamp';
     timeSpan.textContent = latest.timestamp;
-
     entry.appendChild(timeSpan);
     entry.append(` ${latest.message}`);
-
     eventLog.prepend(entry);
   }
 
@@ -324,25 +392,17 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleDeath(cause: string) {
     if (!engine || hasHandledDeath) return;
     hasHandledDeath = true;
-    
     const finalScore = radar ? Math.round(radar.distanceTraveled / 10) : 0;
-    
-    // Wait briefly so the player sees they died, then switch view
-    setTimeout(() => {
-       showGameOver(finalScore, cause);
-    }, 2500);
+    setTimeout(() => { showGameOver(finalScore, cause); }, 2500);
   }
 
-  // --- GAME BUTTON LISTENERS ---
   btnRepairHull.addEventListener('click', () => { engine?.repairHull(); });
   btnRefuel.addEventListener('click', () => { engine?.refuel(); });
   btnRestoreOxygen.addEventListener('click', () => { engine?.restoreOxygen(); });
   btnToggleSim.addEventListener('click', () => {
     if (!engine) return;
-    if (engine.isActive()) { engine.pause(); } else { engine.start(); }
+    if (engine.isActive()) engine.pause(); else engine.start();
   });
 
-  // Start with Menu
   showMenu();
 });
-
