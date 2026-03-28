@@ -3,13 +3,163 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>chewbacca-sim</title>
+  <title>CHEV'BACCA SIMULATOR - Cockpit Simulation</title>
 </head>
 
 <body>
-  <div id="app"></div>
+  <div id="app">
+
+    <!-- MAIN MENU VIEW -->
+    <div id="mainMenuView" class="menu-container">
+      <h1 class="game-title">CHEV'BACCA SIMULATOR</h1>
+      <p class="subtitle">VOID MARAUDER SHIP</p>
+
+      <div class="menu-buttons">
+        <button class="btn-menu" id="btnStartGame">START MISSION</button>
+        <button class="btn-menu" id="btnControls">CONTROLS</button>
+        <button class="btn-menu" id="btnViewHighscores">HIGHSCORES</button>
+      </div>
+    </div>
+
+    <!-- CONTROLS VIEW -->
+    <div id="controlsView" class="menu-container hidden">
+      <h1 class="game-title">FLIGHT MANUAL</h1>
+      <div class="controls-info">
+        <div class="controls-section">
+          <h3>MANUAL CONTROLS</h3>
+          <p><b>WASD</b> - Ship Navigation</p>
+          <p><b>ARROWS</b> - Weapons Targeting</p>
+        </div>
+        <div class="controls-section">
+          <h3>VOICE COMMANDS (AI ASSISTANT)</h3>
+          <ul>
+            <li><b>"Fire" / "Shoot"</b> - Primary Cannons</li>
+            <li><b>"Missiles" / "Salvo"</b> - Missile Spread (30s CD)</li>
+            <li><b>"Shield" / "Armor"</b> - Invulnerability (30s CD)</li>
+            <li><b>"Boost" / "Warp"</b> - Tactical Jump (30s CD)</li>
+            <li><b>"Energy" / "Juice"</b> - Refuel Hyperdrive</li>
+            <li><b>"Repair" / "Fix"</b> - Patch Hull Integrity</li>
+            <li><b>"Oxygen" / "Air"</b> - Restore Life Support</li>
+          </ul>
+        </div>
+      </div>
+      <button class="btn-menu mt-4" id="btnCloseControls">BACK TO MENU</button>
+    </div>
+
+    <!-- HIGHSCORES VIEW -->
+    <div id="highscoresView" class="menu-container hidden">
+      <h1 class="game-title">HALL OF FAME</h1>
+
+      <div class="highscores-list" id="highscoresList">
+        <!-- JS will populate this -->
+      </div>
+
+      <button class="btn-menu mt-4" id="btnBackToMenu">BACK TO MENU</button>
+    </div>
+
+    <!-- GAME OVER VIEW -->
+    <div id="gameOverView" class="menu-container hidden">
+      <h1 class="game-title danger-text">MISSION FAILED</h1>
+      <p class="subtitle" id="gameOverCauseDisplay">HULL INTEGRITY COMPROMISED. SHIP DESTROYED.</p>
+
+      <div class="final-score-box">
+        <h3>FINAL SCORE</h3>
+        <div class="big-score" id="gameOverScoreDisplay">0</div>
+      </div>
+
+      <div class="submit-score-form" id="submitScoreForm">
+        <label for="playerNameInput">ENTER CAPTAIN DESIGNATION:</label>
+        <input type="text" id="playerNameInput" maxlength="15" placeholder="NICKNAME" autocomplete="off" />
+        <button class="btn-menu" id="btnSubmitScore">SUBMIT REPORT</button>
+      </div>
+
+      <button class="btn-menu mt-4" id="btnReturnToMenu">RETURN TO FLEET (MENU)</button>
+    </div>
+
+    <!-- GAME DASHBOARD VIEW (COCKPIT LAYOUT) -->
+    <div id="gameDashboardView" class="dashboard-grid hidden">
+
+      <!-- Top/Center Panel: Space Combat Radar Screen -->
+      <main class="panel center-panel" id="radarContainer">
+        <!-- Canvas injected here by Radar -->
+        <div class="system-header" id="systemHeader">
+          <h1>VOID MARAUDER v1.02</h1>
+        </div>
+      </main>
+
+      <!-- Right Panel: Logs and AI Voice Commander -->
+      <aside class="panel right-panel log-panel">
+        <h2 class="panel-title">AI COMM LINK & LOGS</h2>
+
+
+
+        <!-- Event Log -->
+        <div class="widget flex-grow-widget mt-10">
+          <h3 class="widget-title">SYSTEM EVENT LOG</h3>
+          <div class="log-container" id="eventLog">
+            <!-- Logs go here -->
+          </div>
+        </div>
+      </aside>
+
+      <!-- Bottom Panel: Resource Bars and Emergency Protocols -->
+      <footer class="panel bottom-panel">
+
+        <div class="bottom-stats-container">
+          <!-- Integrity (Health) -->
+          <div class="widget bottom-widget">
+            <h3 class="widget-title">HULL INTEGRITY</h3>
+            <div class="bar-container health-bar" id="healthBarContainer">
+              <div class="bar-fill" id="healthBarFill" style="width: 100%;"></div>
+              <div class="bar-text" id="healthText">100%</div>
+            </div>
+          </div>
+
+          <!-- Fuel -->
+          <div class="widget bottom-widget">
+            <h3 class="widget-title">HYPERDRIVE FUEL</h3>
+            <div class="bar-container fuel-bar" id="fuelBarContainer">
+              <div class="bar-fill" id="fuelBarFill" style="width: 100%;"></div>
+              <div class="bar-text" id="fuelText">100%</div>
+            </div>
+          </div>
+
+          <!-- Oxygen -->
+          <div class="widget bottom-widget">
+            <h3 class="widget-title">OXYGEN LEVEL</h3>
+            <div class="bar-container oxygen-bar" id="oxygenBarContainer">
+              <div class="bar-fill" id="oxygenBarFill" style="width: 100%;"></div>
+              <div class="bar-text" id="oxygenText">100%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bottom-actions-container widget" id="aiAssistantContainer">
+          <h3 class="widget-title">AI COMBAT ASSISTANT (CHEVBACCA)</h3>
+          <div class="ai-controls-layout">
+            <div class="ai-status-bar">
+              <span id="ai-status" class="status-disconnected">OFFLINE</span>
+              <div>
+                <button id="btnToggleSim" class="cyber-button">INITIALIZING...</button>
+                <select id="lang-select" class="cyber-select">
+                  <option value="English" selected>EN</option>
+                  <option value="Polish">PL</option>
+                  <option value="Spanish">ES</option>
+                  <option value="German">DE</option>
+                  <option value="Japanese">JA</option>
+                </select>
+              </div>
+            </div>
+            <button id="start-ai-btn" class="btn-action">INITIALIZE COMM-LINK</button>
+          </div>
+        </div>
+      </footer>
+
+    </div>
+  </div>
+
   <script type="module" src="/src/main.ts"></script>
 </body>
 
