@@ -124,8 +124,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (engine && !engine.isDead()) {
       switch (action.action) {
         case 'fire_weapons':
-          radar?.manualShoot();
-          engine.addLog(`AI: Weapons systems engaged! (${action.type || 'primary'})`, 'info');
+          if (action.type === 'missiles') {
+            radar?.fireMissiles();
+            engine.addLog(`AI: MISSILE SALVO LAUNCHED!`, 'warning');
+          } else {
+            radar?.manualShoot();
+            engine.addLog(`AI: Weapons systems engaged!`, 'info');
+          }
           break;
         case 'activate_shields':
           engine.addLog("AI: Shield generator pulsing!", "info");
