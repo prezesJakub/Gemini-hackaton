@@ -9,7 +9,7 @@ export class AudioCapture {
   async start() {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
         sampleRate: 16000,
       });
@@ -22,7 +22,7 @@ export class AudioCapture {
 
       this.processor.onaudioprocess = (e) => {
         if (!this.onAudioData) return;
-        
+
         const inputData = e.inputBuffer.getChannelData(0);
         const pcm16 = new Int16Array(inputData.length);
         for (let i = 0; i < inputData.length; i++) {
@@ -41,7 +41,7 @@ export class AudioCapture {
         for (let i = 0; i < bytes.byteLength; i++) {
           binary += String.fromCharCode(bytes[i]);
         }
-        
+
         this.onAudioData(btoa(binary));
       };
 

@@ -1,4 +1,3 @@
-
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap');
 
 :root {
@@ -12,7 +11,7 @@
   --success-color: #00ff66;
   --oxygen-color: #00e5ff;
   --glow-shadow: 0 0 10px var(--border-color), inset 0 0 10px var(--border-color);
-  
+
   --font-display: 'Orbitron', sans-serif;
   --font-mono: 'Share Tech Mono', monospace;
 }
@@ -25,7 +24,7 @@
 
 body {
   background-color: var(--bg-color);
-  background-image: 
+  background-image:
     radial-gradient(circle at 50% 50%, rgba(0, 240, 255, 0.05) 0%, transparent 50%),
     linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
@@ -114,7 +113,9 @@ body {
   transform: scale(0.95);
 }
 
-.mt-4 { margin-top: 2rem; }
+.mt-4 {
+  margin-top: 2rem;
+}
 
 /* Dashboard Grid Layout */
 .dashboard-grid {
@@ -475,6 +476,7 @@ body {
   background: linear-gradient(90deg, #00aa33, var(--success-color));
   box-shadow: 0 0 10px var(--success-color);
 }
+
 .health-bar.danger .bar-fill {
   background: linear-gradient(90deg, #aa0000, var(--warning-color));
   box-shadow: 0 0 10px var(--warning-color);
@@ -484,6 +486,7 @@ body {
   background: linear-gradient(90deg, #0088ff, var(--oxygen-color));
   box-shadow: 0 0 10px var(--oxygen-color);
 }
+
 .oxygen-bar.danger .bar-fill {
   background: linear-gradient(90deg, #aa0000, var(--warning-color));
   box-shadow: 0 0 10px var(--warning-color);
@@ -607,35 +610,55 @@ body {
 
 /* Animations */
 @keyframes pulse-danger {
-  0% { box-shadow: 0 0 5px var(--warning-color), inset 0 0 5px var(--warning-color); }
-  50% { box-shadow: 0 0 20px var(--warning-color), inset 0 0 20px var(--warning-color); }
-  100% { box-shadow: 0 0 5px var(--warning-color), inset 0 0 5px var(--warning-color); }
+  0% {
+    box-shadow: 0 0 5px var(--warning-color), inset 0 0 5px var(--warning-color);
+  }
+
+  50% {
+    box-shadow: 0 0 20px var(--warning-color), inset 0 0 20px var(--warning-color);
+  }
+
+  100% {
+    box-shadow: 0 0 5px var(--warning-color), inset 0 0 5px var(--warning-color);
+  }
 }
 
 @keyframes slide-in {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
-  background: rgba(0,0,0,0.5); 
+  background: rgba(0, 0, 0, 0.5);
 }
+
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 240, 255, 0.4); 
+  background: rgba(0, 240, 255, 0.4);
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 240, 255, 0.8); 
+  background: rgba(0, 240, 255, 0.8);
 }
 
 
 
 
-.mt-10 { margin-top: 10px; }
+.mt-10 {
+  margin-top: 10px;
+}
 
 /* AI Assistant HUD Styles */
 .ai-controls-layout {
