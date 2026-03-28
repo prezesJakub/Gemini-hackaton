@@ -45,9 +45,13 @@ export class Radar {
   public shieldActive: boolean = false;
   private shieldTimer: number = 0;
 
+  // Boost / Overdrive
+  private boostActive: number = 0;
+
   distanceTraveled: number = 0;
   kills: number = 0;
 
+  // ... (rest same until setupInputs) ...
   ships: Ship[] = [];
   projectiles: Projectile[] = [];
   explosions: Explosion[] = [];
@@ -78,6 +82,22 @@ export class Radar {
   public activateShield() {
     this.shieldActive = true;
     this.shieldTimer = 5.0;
+  }
+
+  public activateBoost() {
+    // Nagły skok do przodu (teleport / warp)
+    const jumpDistance = 1500;
+    this.playerPosition.y -= jumpDistance;
+    this.distanceTraveled += jumpDistance;
+    this.boostActive = 0.5; // Efekt wizualny na pół sekundy
+    
+    // Tworzymy duży wybuch pędu za nami
+    this.explosions.push({
+      position: { x: this.playerPosition.x, y: this.playerPosition.y + 100 },
+      life: 0.8,
+      maxLife: 0.8,
+      radius: 80
+    });
   }
 
   public manualShoot() {
@@ -133,12 +153,17 @@ export class Radar {
   public update(deltaTime: number) {
     if (this.isGameOver) return;
 
+    // Obsługa czasu tarczy
     if (this.shieldTimer > 0) {
       this.shieldTimer -= deltaTime;
       if (this.shieldTimer <= 0) {
         this.shieldTimer = 0;
         this.shieldActive = false;
       }
+    }
+
+    if (this.boostActive > 0) {
+      this.boostActive -= deltaTime;
     }
 
     let currentForwardSpeed = this.baseSpeed;
@@ -431,12 +456,30 @@ export class Radar {
 
     ctx.restore(); 
 
+    // RYSOWANIE GRACZA (HUD)
     ctx.beginPath();
-    ctx.moveTo(centerX, centerY - 15); ctx.lineTo(centerX - 12, centerY + 12);
-    ctx.lineTo(centerX, centerY + 6); ctx.lineTo(centerX + 12, centerY + 12);
+    ctx.moveTo(centerX, centerY - 15);
+    ctx.lineTo(centerX - 12, centerY + 12);
+    ctx.lineTo(centerX, centerY + 6);
+    ctx.lineTo(centerX + 12, centerY + 12);
     ctx.closePath(); 
-    ctx.fillStyle = this.shieldActive ? '#00ffff' : '#00ffcc'; 
+    ctx.fillStyle = this.shieldActive ? '#00ffff' : (this.boostActive > 0 ? '#ffffff' : '#00ffcc'); 
     ctx.fill();
+
+    // WARP EFFECT LINES
+    if (this.boostActive > 0) {
+      ctx.strokeStyle = `rgba(255, 255, 255, ${this.boostActive * 2})`;
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 20; i++) {
+        const x = Math.random() * width;
+        const y = Math.random() * height;
+        const len = 100 + Math.random() * 200;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + len);
+        ctx.stroke();
+      }
+    }
 
     if (!this.isGameOver) {
       const cwX = centerX + this.crosshairOffset.x;

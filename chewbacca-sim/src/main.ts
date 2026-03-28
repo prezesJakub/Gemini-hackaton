@@ -141,7 +141,8 @@ document.addEventListener('DOMContentLoaded', () => {
           engine.addLog("AI: Hyperdrive fuel replenished!", "success");
           break;
         case 'overdrive_mode':
-          engine.addLog("AI: Overdrive protocol active!", "warning");
+          radar?.activateBoost();
+          engine.addLog("AI: Overdrive protocol active! Warp core engaged.", "warning");
           break;
         case 'repair_ship':
           engine.repairHull();
