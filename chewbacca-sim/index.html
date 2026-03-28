@@ -58,8 +58,8 @@
       <!-- Top/Center Panel: Space Combat Radar Screen -->
       <main class="panel center-panel" id="radarContainer">
         <!-- Canvas injected here by Radar -->
-        <div class="cockpit-hud-overlay" id="systemHeader">
-          <div class="status-indicator" id="systemStatus">SYSTEMS NOMINAL</div>
+        <div class="system-header" id="systemHeader">
+          <h1>VOID MARAUDER v1.02</h1>
         </div>
       </main>
 
@@ -116,7 +116,7 @@
             <div class="ai-status-bar">
                <span id="ai-status" class="status-disconnected">OFFLINE</span>
                <div>
-                 <button id="btnToggleSim" class="cyber-button" style="font-size: 0.7em; margin-right: 5px;">PAUSE</button>
+                 <button id="btnToggleSim" class="cyber-button">INITIALIZING...</button>
                  <select id="lang-select" class="cyber-select">
                     <option value="English" selected>EN</option>
                     <option value="Polish">PL</option>
@@ -127,9 +127,6 @@
                </div>
             </div>
             <button id="start-ai-btn" class="btn-action">INITIALIZE COMM-LINK</button>
-            <div class="ai-transcript" id="ai-action-log">
-               <i>Voice commands active...</i>
-            </div>
           </div>
         </div>
       </footer>

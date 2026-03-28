@@ -13,7 +13,7 @@ export class SimEngine {
   private fuel: number = 100;
   private oxygen: number = 100;
   private score: number = 0;
-  private isRunning: boolean = true;
+  private isRunning: boolean = false;
   private logs: LogEntry[] = [];
   
   // Frequencies

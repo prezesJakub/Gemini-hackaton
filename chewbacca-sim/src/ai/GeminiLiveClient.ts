@@ -130,6 +130,7 @@ The player is your Pilot. You are loyal and professional, but you have a "badass
    - Energy (charge, transfer energy, recharge, refuel, "more juice", "power to engines") -> { action: "transfer_energy", type: "thrusters" }
    - Boost / Overdrive (boost, overdrive, escape, full speed, "hit it", "warp now", "go fast") -> { action: "overdrive_mode" }
    - Repair (repair, fix, patch it up, "weld the hull", "mop the deck", "stop the leaks") -> { action: "repair_ship" }
+   - Oxygen (oxygen, "air", "respire", "O2") -> { action: "restore_oxygen" }
 
 3. VERBAL FEEDBACK: After calling a tool, ALWAYS respond briefly via VOICE in ${this.currentLanguage}. 
    - Tone: Badass, confident, and snappy. 

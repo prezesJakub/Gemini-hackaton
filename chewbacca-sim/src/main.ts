@@ -4,7 +4,6 @@ import { Radar } from './radar';
 import { AudioCapture } from './audio/AudioCapture';
 import { GeminiLiveClient, type ShipAction } from './ai/GeminiLiveClient';
 
-// Wpisz tutaj swój klucz API na czas hackatonu
 const API_KEY = "AIzaSyCBUx-o0IKRX16lbh34zIzYWrb09ABNep0";
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -29,7 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- GAME UI ELEMENTS ---
   const header = document.getElementById('systemHeader') as HTMLElement;
-  const statusIndicator = document.getElementById('systemStatus') as HTMLElement;
   const healthBarFill = document.getElementById('healthBarFill') as HTMLElement;
   const healthText = document.getElementById('healthText') as HTMLElement;
   const healthBarContainer = document.getElementById('healthBarContainer') as HTMLElement;
@@ -40,10 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const oxygenBarContainer = document.getElementById('oxygenBarContainer') as HTMLElement;
   const eventLog = document.getElementById('eventLog') as HTMLElement;
 
-  // --- AI ASSISTANT ELEMENTS (Now in the bottom right context) ---
+  // --- AI ASSISTANT ELEMENTS ---
   const startAiBtn = document.getElementById('start-ai-btn') as HTMLButtonElement;
   const aiStatusSpan = document.getElementById('ai-status') as HTMLSpanElement;
-  const aiActionLog = document.getElementById('ai-action-log') as HTMLDivElement;
   const langSelect = document.getElementById('lang-select') as HTMLSelectElement;
   const btnToggleSim = document.getElementById('btnToggleSim') as HTMLButtonElement;
 
@@ -114,12 +111,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const time = new Date().toLocaleTimeString();
     const speech = action.recognized_speech ? `"${action.recognized_speech}"` : "";
     
-    const logEntry = document.createElement('div');
-    logEntry.style.borderBottom = "1px solid rgba(0, 255, 255, 0.1)";
-    logEntry.style.padding = "2px 0";
-    logEntry.innerHTML = `<span style="opacity:0.5">${time}</span> ${speech} -> <b>${action.action}</b>`;
-    aiActionLog.prepend(logEntry);
-    if (aiActionLog.childElementCount > 4) aiActionLog.lastElementChild?.remove();
+    // Log AI action to the Main Event Log
+    const entry = document.createElement('div');
+    entry.className = 'log-entry info';
+    entry.innerHTML = `<span class="timestamp">${time}</span> AI RECOGNIZED: ${speech} -> <b style="color:var(--accent-color)">${action.action}</b>`;
+    eventLog.prepend(entry);
 
     if (engine && !engine.isDead()) {
       switch (action.action) {
@@ -147,6 +143,10 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'repair_ship':
           engine.repairHull();
           engine.addLog("AI: Critical hull patching initiated.", "success");
+          break;
+        case 'restore_oxygen':
+          engine.restoreOxygen();
+          engine.addLog("AI: Oxygen scrubbers activated! Life support at 100%.", "success");
           break;
       }
     }
@@ -209,7 +209,9 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'oxygen': updateOxygenUI(); break;
         case 'log': updateLogUI(); break;
         case 'status':
-          updateStatusUI();
+          if (!engine.isDead()) {
+             btnToggleSim.textContent = engine.isActive() ? 'PAUSE' : 'RESUME';
+          }
           if (engine.isDead()) {
              let cause = 'SYSTEM FAILURE';
              if (engine.getHealth() <= 0) cause = 'HULL INTEGRITY COMPROMISED';
@@ -224,9 +226,10 @@ document.addEventListener('DOMContentLoaded', () => {
     updateHealthUI();
     updateFuelUI();
     updateOxygenUI();
-    updateStatusUI();
-    engine.start();
-
+    
+    // Gra startuje ZAPAUZOWANA, aby gracz mógł połączyć się z AI
+    btnToggleSim.textContent = 'RESUME (PLAY)';
+    
     if (radarLoopId !== null) cancelAnimationFrame(radarLoopId);
     if (radarCanvas && radarCtx) {
       radar = new Radar(radarCanvas);
@@ -239,6 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const deltaTime = (currentTime - lastTime) / 1000;
         lastTime = currentTime;
         if (radar && engine) {
+           radar.isActive = engine.isActive(); // SYNC STATE
            radar.playerHp = engine.getHealth();
            radar.isGameOver = engine.isDead();
            if (engine.isActive() && !engine.isDead()) radar.update(deltaTime);
@@ -248,6 +252,8 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       radarLoopId = requestAnimationFrame(gameLoop);
     }
+
+    startAiBtn.click();
   }
 
   // --- MENU LISTENERS ---
@@ -286,10 +292,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (hp <= 30) {
       healthBarContainer.classList.add('danger');
       header.classList.add('critical-status');
-      statusIndicator.textContent = 'CRITICAL ALERT';
     } else {
       healthBarContainer.classList.remove('danger');
-      checkNormalStatus();
+      header.classList.remove('critical-status');
     }
   }
 
@@ -324,27 +329,17 @@ document.addEventListener('DOMContentLoaded', () => {
     eventLog.prepend(entry);
   }
 
-  function updateStatusUI() {
-     if (!engine) return;
-     if (!engine.isActive() && !engine.isDead()) {
-       btnToggleSim.textContent = 'RESUME';
-       statusIndicator.textContent = 'SIMULATION PAUSED';
-     } else if (!engine.isDead()) {
-       btnToggleSim.textContent = 'PAUSE';
-       checkNormalStatus();
-     }
-  }
-
-  function checkNormalStatus() {
-    if (engine && engine.isActive() && engine.getHealth() > 30) {
-      header.classList.remove('critical-status');
-      statusIndicator.textContent = 'SYSTEMS NOMINAL';
-    }
-  }
-
   function handleDeath(cause: string) {
     if (!engine || hasHandledDeath) return;
     hasHandledDeath = true;
+    
+    aiClient.disconnect();
+    audioCapture.stop();
+    aiStatusSpan.textContent = "OFFLINE (MISSION FAILED)";
+    aiStatusSpan.className = 'status-disconnected';
+    startAiBtn.disabled = false;
+    startAiBtn.textContent = 'RE-INITIALIZE';
+
     const finalScore = radar ? Math.round(radar.distanceTraveled / 10) : 0;
     setTimeout(() => { showGameOver(finalScore, cause); }, 2500);
   }
