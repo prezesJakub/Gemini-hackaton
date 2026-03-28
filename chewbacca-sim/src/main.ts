@@ -10,14 +10,20 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- VIEWS ---
   const mainMenuView = document.getElementById('mainMenuView') as HTMLElement;
   const highscoresView = document.getElementById('highscoresView') as HTMLElement;
+  const controlsView = document.getElementById('controlsView') as HTMLElement;
   const gameOverView = document.getElementById('gameOverView') as HTMLElement;
   const gameDashboardView = document.getElementById('gameDashboardView') as HTMLElement;
 
   // --- MENU BUTTONS ---
   const btnStartGame = document.getElementById('btnStartGame') as HTMLButtonElement;
+  const btnControls = document.getElementById('btnControls') as HTMLButtonElement;
   const btnViewHighscores = document.getElementById('btnViewHighscores') as HTMLButtonElement;
   const btnBackToMenu = document.getElementById('btnBackToMenu') as HTMLButtonElement;
   const btnReturnToMenu = document.getElementById('btnReturnToMenu') as HTMLButtonElement;
+  const btnCloseControls = document.getElementById('btnCloseControls') as HTMLButtonElement;
+
+  btnControls.addEventListener('click', showControls);
+  btnCloseControls.addEventListener('click', showMenu);
 
   // --- GAME OVER ELEMENTS ---
   const gameOverScoreDisplay = document.getElementById('gameOverScoreDisplay') as HTMLElement;
@@ -184,6 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function hideAllViews() {
     mainMenuView.classList.add('hidden');
     highscoresView.classList.add('hidden');
+    controlsView.classList.add('hidden');
     gameOverView.classList.add('hidden');
     gameDashboardView.classList.add('hidden');
     gameDashboardView.classList.remove('dashboard-grid');
@@ -192,6 +199,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function showMenu() {
     hideAllViews();
     mainMenuView.classList.remove('hidden');
+  }
+
+  function showControls() {
+    hideAllViews();
+    controlsView.classList.remove('hidden');
   }
 
   function showHighscores() {

@@ -18,8 +18,34 @@
 
       <div class="menu-buttons">
         <button class="btn-menu" id="btnStartGame">START MISSION</button>
+        <button class="btn-menu" id="btnControls">CONTROLS</button>
         <button class="btn-menu" id="btnViewHighscores">HIGHSCORES</button>
       </div>
+    </div>
+
+    <!-- CONTROLS VIEW -->
+    <div id="controlsView" class="menu-container hidden">
+      <h1 class="game-title">FLIGHT MANUAL</h1>
+      <div class="controls-info">
+        <div class="controls-section">
+          <h3>MANUAL CONTROLS</h3>
+          <p><b>WASD</b> - Ship Navigation</p>
+          <p><b>ARROWS</b> - Weapons Targeting</p>
+        </div>
+        <div class="controls-section">
+          <h3>VOICE COMMANDS (AI ASSISTANT)</h3>
+          <ul>
+            <li><b>"Fire" / "Shoot"</b> - Primary Cannons</li>
+            <li><b>"Missiles" / "Salvo"</b> - Missile Spread (30s CD)</li>
+            <li><b>"Shield" / "Armor"</b> - Invulnerability (30s CD)</li>
+            <li><b>"Boost" / "Warp"</b> - Tactical Jump (30s CD)</li>
+            <li><b>"Energy" / "Juice"</b> - Refuel Hyperdrive</li>
+            <li><b>"Repair" / "Fix"</b> - Patch Hull Integrity</li>
+            <li><b>"Oxygen" / "Air"</b> - Restore Life Support</li>
+          </ul>
+        </div>
+      </div>
+      <button class="btn-menu mt-4" id="btnCloseControls">BACK TO MENU</button>
     </div>
 
     <!-- HIGHSCORES VIEW -->
