@@ -10,79 +10,131 @@
 
 <body>
   <div id="app">
-    <!-- Header -->
-    <header class="header panel" id="systemHeader">
-      <h1>[ CLV CHEWBACCA ] </h1>
-      <div class="status-indicator" id="systemStatus">SYSTEMS NOMINAL</div>
-    </header>
-
-    <!-- Left Panel (Life Support & Oxygen) -->
-    <aside class="panel left-panel">
-      <h2 class="panel-title">LIFE SUPPORT</h2>
+    
+    <!-- MAIN MENU VIEW -->
+    <div id="mainMenuView" class="menu-container">
+      <h1 class="game-title">CLV CHEWBACCA</h1>
+      <p class="subtitle">DEEP SPACE SURVIVAL SIMULATOR</p>
       
-      <!-- Oxygen Bar -->
-      <div class="widget">
-        <h3 class="widget-title">OXYGEN LEVEL</h3>
-        <div class="bar-container oxygen-bar" id="oxygenBarContainer">
-          <div class="bar-fill" id="oxygenBarFill" style="width: 100%;"></div>
-          <div class="bar-text" id="oxygenText">100%</div>
-        </div>
+      <div class="menu-buttons">
+        <button class="btn-menu" id="btnStartGame">START MISSION</button>
+        <button class="btn-menu" id="btnViewHighscores">HIGHSCORES</button>
       </div>
+    </div>
 
-      <!-- Action Buttons Left -->
-      <div class="widget">
-        <h3 class="widget-title">O2 CONTROLS</h3>
-        <div class="actions-grid left-actions">
-          <button class="btn-action repair-btn" id="btnRestoreOxygen" disabled>RESTORE OXYGEN</button>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Center/Main Console (Actions / Radar area) -->
-    <main class="panel center-panel">
-      <h2 class="panel-title">COMMAND CONSOLE</h2>
+    <!-- HIGHSCORES VIEW -->
+    <div id="highscoresView" class="menu-container hidden">
+      <h1 class="game-title">HALL OF FAME</h1>
       
-      <!-- General Action Panel -->
-      <div class="widget flex-grow-widget">
-        <h3 class="widget-title">EMERGENCY PROTOCOLS</h3>
-        <div class="actions-grid center-actions">
-          <button class="btn-action repair-btn" id="btnRepairHull" disabled>REPAIR HULL</button>
-          <button class="btn-action repair-btn" id="btnRefuel" disabled>ENGAGE REFUELLER</button>
-          <button class="btn-action warning" id="btnFixEngine" disabled>RESTART EXT. ENGINES</button>
-          <button class="btn-action" id="btnToggleSim">PAUSE SIMULATION</button>
-        </div>
+      <div class="highscores-list" id="highscoresList">
+        <!-- JS will populate this -->
+        <div class="score-entry"><span class="rank">1.</span> <span class="name">Han Solo</span> <span class="score">12500 pts</span></div>
+        <div class="score-entry"><span class="rank">2.</span> <span class="name">Lando</span> <span class="score">8400 pts</span></div>
+        <div class="score-entry"><span class="rank">3.</span> <span class="name">Luke</span> <span class="score">5300 pts</span></div>
+        <div class="score-entry"><span class="rank">4.</span> <span class="name">R2D2</span> <span class="score">2100 pts</span></div>
+        <div class="score-entry"><span class="rank">5.</span> <span class="name">Cadet</span> <span class="score">500 pts</span></div>
       </div>
-    </main>
+      
+      <button class="btn-menu mt-4" id="btnBackToMenu">BACK TO MENU</button>
+    </div>
 
-    <!-- Right Panel (Event Log) -->
-    <aside class="panel right-panel log-panel">
-      <h2 class="panel-title">SYSTEM LOG</h2>
-      <div class="log-container" id="eventLog">
-        <!-- Logs go here -->
-        <div class="log-entry info"><span class="timestamp">[00:00:00]</span> SYSTEM BOOT SEQUENCE INITIATED...</div>
-      </div>
-    </aside>
-
-    <!-- Bottom Panel (Integrity & Fuel) -->
-    <footer class="panel bottom-panel">
-      <!-- Integrity (Health) -->
-      <div class="widget bottom-widget">
-        <h3 class="widget-title">HULL INTEGRITY</h3>
-        <div class="bar-container health-bar" id="healthBarContainer">
-          <div class="bar-fill" id="healthBarFill" style="width: 100%;"></div>
-          <div class="bar-text" id="healthText">100%</div>
-        </div>
+    <!-- GAME OVER VIEW -->
+    <div id="gameOverView" class="menu-container hidden">
+      <h1 class="game-title danger-text">MISSION FAILED</h1>
+      <p class="subtitle">HULL INTEGRITY COMPROMISED. SHIP DESTROYED.</p>
+      
+      <div class="final-score-box">
+        <h3>FINAL SCORE</h3>
+        <div class="big-score" id="gameOverScoreDisplay">0</div>
       </div>
 
-      <!-- Fuel -->
-      <div class="widget bottom-widget">
-        <h3 class="widget-title">HYPERDRIVE FUEL</h3>
-        <div class="bar-container fuel-bar" id="fuelBarContainer">
-          <div class="bar-fill" id="fuelBarFill" style="width: 100%;"></div>
-          <div class="bar-text" id="fuelText">100%</div>
-        </div>
+      <div class="submit-score-form" id="submitScoreForm">
+        <label for="playerNameInput">ENTER CAPTAIN DESIGNATION:</label>
+        <input type="text" id="playerNameInput" maxlength="15" placeholder="NICKNAME" autocomplete="off" />
+        <button class="btn-menu" id="btnSubmitScore">SUBMIT REPORT</button>
       </div>
-    </footer>
+      
+      <button class="btn-menu mt-4" id="btnReturnToMenu">RETURN TO FLEET (MENU)</button>
+    </div>
+
+    <!-- GAME DASHBOARD VIEW -->
+    <div id="gameDashboardView" class="dashboard-grid hidden">
+      <!-- Header -->
+      <header class="header panel" id="systemHeader">
+        <h1>[ CLV CHEWBACCA ] </h1>
+        <div class="header-info">
+          <div class="status-indicator" id="systemStatus">SYSTEMS NOMINAL</div>
+          <div class="score-display">SCORE: <span id="gameScoreDisplay">0</span></div>
+        </div>
+      </header>
+
+      <!-- Left Panel (Life Support & Oxygen) -->
+      <aside class="panel left-panel">
+        <h2 class="panel-title">LIFE SUPPORT</h2>
+        
+        <!-- Oxygen Bar -->
+        <div class="widget">
+          <h3 class="widget-title">OXYGEN LEVEL</h3>
+          <div class="bar-container oxygen-bar" id="oxygenBarContainer">
+            <div class="bar-fill" id="oxygenBarFill" style="width: 100%;"></div>
+            <div class="bar-text" id="oxygenText">100%</div>
+          </div>
+        </div>
+
+        <!-- Action Buttons Left -->
+        <div class="widget">
+          <h3 class="widget-title">O2 CONTROLS</h3>
+          <div class="actions-grid left-actions">
+            <button class="btn-action repair-btn" id="btnRestoreOxygen" disabled>RESTORE OXYGEN</button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center/Main Console (Actions / Radar area) -->
+      <main class="panel center-panel">
+        <h2 class="panel-title">COMMAND CONSOLE</h2>
+        
+        <!-- General Action Panel -->
+        <div class="widget flex-grow-widget">
+          <h3 class="widget-title">EMERGENCY PROTOCOLS</h3>
+          <div class="actions-grid center-actions">
+            <button class="btn-action repair-btn" id="btnRepairHull" disabled>REPAIR HULL</button>
+            <button class="btn-action repair-btn" id="btnRefuel" disabled>ENGAGE REFUELLER</button>
+            <button class="btn-action warning" id="btnFixEngine" disabled>RESTART EXT. ENGINES</button>
+            <button class="btn-action" id="btnToggleSim">PAUSE SIMULATION</button>
+          </div>
+        </div>
+      </main>
+
+      <!-- Right Panel (Event Log) -->
+      <aside class="panel right-panel log-panel">
+        <h2 class="panel-title">SYSTEM LOG</h2>
+        <div class="log-container" id="eventLog">
+          <!-- Logs go here -->
+        </div>
+      </aside>
+
+      <!-- Bottom Panel (Integrity & Fuel) -->
+      <footer class="panel bottom-panel">
+        <!-- Integrity (Health) -->
+        <div class="widget bottom-widget">
+          <h3 class="widget-title">HULL INTEGRITY</h3>
+          <div class="bar-container health-bar" id="healthBarContainer">
+            <div class="bar-fill" id="healthBarFill" style="width: 100%;"></div>
+            <div class="bar-text" id="healthText">100%</div>
+          </div>
+        </div>
+
+        <!-- Fuel -->
+        <div class="widget bottom-widget">
+          <h3 class="widget-title">HYPERDRIVE FUEL</h3>
+          <div class="bar-container fuel-bar" id="fuelBarContainer">
+            <div class="bar-fill" id="fuelBarFill" style="width: 100%;"></div>
+            <div class="bar-text" id="fuelText">100%</div>
+          </div>
+        </div>
+      </footer>
+    </div>
   </div>
   
   <script type="module" src="/src/main.ts"></script>

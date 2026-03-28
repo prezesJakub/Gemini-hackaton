@@ -6,12 +6,13 @@ export interface LogEntry {
   type: LogType;
 }
 
-export type EventCallback = (eventType: 'health' | 'fuel' | 'oxygen' | 'log' | 'status') => void;
+export type EventCallback = (eventType: 'health' | 'fuel' | 'oxygen' | 'score' | 'log' | 'status') => void;
 
 export class SimEngine {
   private health: number = 100;
   private fuel: number = 100;
   private oxygen: number = 100;
+  private score: number = 0;
   private isRunning: boolean = true;
   private logs: LogEntry[] = [];
   
@@ -27,11 +28,12 @@ export class SimEngine {
     this.addLog('Engine initialized. All systems nominal. Life support active.', 'info');
   }
 
+  // --- GETTERS ---
   public subscribe(callback: EventCallback) {
     this.callbacks.push(callback);
   }
 
-  private notify(eventType: 'health' | 'fuel' | 'oxygen' | 'log' | 'status') {
+  private notify(eventType: 'health' | 'fuel' | 'oxygen' | 'score' | 'log' | 'status') {
     this.callbacks.forEach(cb => cb(eventType));
   }
 
@@ -47,6 +49,10 @@ export class SimEngine {
     return this.oxygen;
   }
 
+  public getScore(): number {
+    return this.score;
+  }
+
   public getLogs(): LogEntry[] {
     return this.logs;
   }
@@ -55,10 +61,16 @@ export class SimEngine {
     return this.isRunning;
   }
 
+  public isDead(): boolean {
+    return this.health <= 0;
+  }
+
+  // --- LIFECYCLE ---
   public start() {
     if (this.isRunning && this.tickIntervalId !== null) return;
+    if (this.health <= 0) return; // Cannot start dead ship
     this.isRunning = true;
-    this.addLog('Simulation resumed.', 'info');
+    this.addLog('Simulation active.', 'info');
     this.notify('status');
 
     this.tickIntervalId = window.setInterval(() => this.tick(), 1000);
@@ -74,6 +86,11 @@ export class SimEngine {
     this.notify('status');
   }
 
+  public stop() {
+    this.pause();
+  }
+
+  // --- TICKS & STATE MNG ---
   private tick() {
     if (!this.isRunning) return;
 
@@ -109,9 +126,16 @@ export class SimEngine {
     if (this.health <= 0) {
       this.health = 0;
       this.addLog('CRITICAL: HULL INTEGRITY 0%. SHIP DESTROYED/CREW DEAD.', 'warning');
-      this.pause();
+      this.stop();
       this.notify('health');
+      this.notify('status'); // Notify the UI that we are dead
       return; 
+    }
+
+    // Scoring system (10 points every second we are alive and moving)
+    if (this.fuel > 0 && this.oxygen > 0 && this.health > 0) {
+      this.score += 10;
+      this.notify('score');
     }
 
     // Random Events
@@ -168,29 +192,25 @@ export class SimEngine {
     this.notify('log');
   }
 
-  // User Actions
+  // --- ACTIONS ---
   public repairHull() {
-    if (this.health >= 100) return;
+    if (this.health >= 100 || !this.isRunning) return;
     this.health = Math.min(100, this.health + 25);
     this.addLog('ACTION: Emergency hull repair completed (+25%).', 'success');
     this.notify('health');
   }
 
   public refuel() {
-    if (this.fuel >= 100) return;
+    if (this.fuel >= 100 || !this.isRunning) return;
     this.fuel = Math.min(100, this.fuel + 30);
     this.addLog('ACTION: Refuelling sequence completed (+30%).', 'success');
     this.notify('fuel');
   }
   
   public restoreOxygen() {
-    if (this.oxygen >= 100) return;
+    if (this.oxygen >= 100 || !this.isRunning) return;
     this.oxygen = Math.min(100, this.oxygen + 40);
     this.addLog('ACTION: Life support O2 reserves deployed (+40%).', 'success');
     this.notify('oxygen');
-  }
-
-  public overrideFuelConsumption(newRate: number) {
-     this.fuelConsumptionRate = newRate;
   }
 }

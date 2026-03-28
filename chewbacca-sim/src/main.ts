@@ -1,12 +1,29 @@
 import './style.css';
-import { SimEngine } from './simEngine.ts';
+import { SimEngine } from './simEngine';
 
 document.addEventListener('DOMContentLoaded', () => {
-  const engine = new SimEngine();
+  // --- VIEWS ---
+  const mainMenuView = document.getElementById('mainMenuView') as HTMLElement;
+  const highscoresView = document.getElementById('highscoresView') as HTMLElement;
+  const gameOverView = document.getElementById('gameOverView') as HTMLElement;
+  const gameDashboardView = document.getElementById('gameDashboardView') as HTMLElement;
+
+  // --- MENU BUTTONS ---
+  const btnStartGame = document.getElementById('btnStartGame') as HTMLButtonElement;
+  const btnViewHighscores = document.getElementById('btnViewHighscores') as HTMLButtonElement;
+  const btnBackToMenu = document.getElementById('btnBackToMenu') as HTMLButtonElement;
+  const btnReturnToMenu = document.getElementById('btnReturnToMenu') as HTMLButtonElement;
   
-  // UI Elements
+  // --- GAME OVER ELEMENTS ---
+  const gameOverScoreDisplay = document.getElementById('gameOverScoreDisplay') as HTMLElement;
+  const playerNameInput = document.getElementById('playerNameInput') as HTMLInputElement;
+  const btnSubmitScore = document.getElementById('btnSubmitScore') as HTMLButtonElement;
+  const highscoresList = document.getElementById('highscoresList') as HTMLElement;
+
+  // --- GAME UI ELEMENTS ---
   const header = document.getElementById('systemHeader') as HTMLElement;
   const statusIndicator = document.getElementById('systemStatus') as HTMLElement;
+  const gameScoreDisplay = document.getElementById('gameScoreDisplay') as HTMLElement;
   
   const healthBarFill = document.getElementById('healthBarFill') as HTMLElement;
   const healthText = document.getElementById('healthText') as HTMLElement;
@@ -22,45 +39,149 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const eventLog = document.getElementById('eventLog') as HTMLElement;
   
-  // Buttons
   const btnRepairHull = document.getElementById('btnRepairHull') as HTMLButtonElement;
   const btnRefuel = document.getElementById('btnRefuel') as HTMLButtonElement;
   const btnToggleSim = document.getElementById('btnToggleSim') as HTMLButtonElement;
   const btnFixEngine = document.getElementById('btnFixEngine') as HTMLButtonElement;
   const btnRestoreOxygen = document.getElementById('btnRestoreOxygen') as HTMLButtonElement;
 
-  // Initialize UI state
-  updateHealthUI();
-  updateFuelUI();
-  updateOxygenUI();
-  updateStatusUI();
+  // --- STATE ---
+  let engine: SimEngine | null = null;
+  let simulatedButtonInterval: number | null = null;
+  
+  // Simple local highscores array
+  let highscores: {name: string, score: number}[] = [
+    { name: 'Han Solo', score: 12500 },
+    { name: 'Lando', score: 8400 },
+    { name: 'Luke', score: 5300 },
+    { name: 'R2D2', score: 2100 },
+    { name: 'Cadet', score: 500 }
+  ];
 
-  // Engine Event Subscription
-  engine.subscribe((eventType) => {
-    switch (eventType) {
-      case 'health':
-        updateHealthUI();
-        break;
-      case 'fuel':
-        updateFuelUI();
-        break;
-      case 'oxygen':
-        updateOxygenUI();
-        break;
-      case 'log':
-        updateLogUI();
-        break;
-      case 'status':
-        updateStatusUI();
-        break;
-    }
+  // --- VIEW ROUTING ---
+  function hideAllViews() {
+    mainMenuView.classList.add('hidden');
+    highscoresView.classList.add('hidden');
+    gameOverView.classList.add('hidden');
+    gameDashboardView.classList.add('hidden');
+    gameDashboardView.classList.remove('dashboard-grid'); // remove grid structure when hidden
+  }
+
+  function showMenu() {
+    hideAllViews();
+    mainMenuView.classList.remove('hidden');
+  }
+
+  function showHighscores() {
+    hideAllViews();
+    renderHighscores();
+    highscoresView.classList.remove('hidden');
+  }
+
+  function showGameOver(finalScore: number) {
+    hideAllViews();
+    gameOverScoreDisplay.textContent = `${finalScore}`;
+    playerNameInput.value = ''; // clear previous
+    playerNameInput.disabled = false;
+    btnSubmitScore.disabled = false;
+    btnSubmitScore.textContent = 'SUBMIT REPORT';
+    gameOverView.classList.remove('hidden');
+  }
+
+  function startGame() {
+    hideAllViews();
+    gameDashboardView.classList.remove('hidden');
+    gameDashboardView.classList.add('dashboard-grid'); // restore grid
+
+    // Clean up old log
+    eventLog.innerHTML = '';
+    
+    // Create new fresh engine
+    engine = new SimEngine();
+
+    // Subscribe UI
+    engine.subscribe((eventType) => {
+      if (!engine) return;
+      switch (eventType) {
+        case 'health':
+          updateHealthUI();
+          break;
+        case 'fuel':
+          updateFuelUI();
+          break;
+        case 'oxygen':
+          updateOxygenUI();
+          break;
+        case 'score':
+          updateScoreUI();
+          break;
+        case 'log':
+          updateLogUI();
+          break;
+        case 'status':
+          updateStatusUI();
+          if (engine.isDead()) {
+             handleDeath();
+          }
+          break;
+      }
+    });
+
+    // Initialize UI
+    updateHealthUI();
+    updateFuelUI();
+    updateOxygenUI();
+    updateScoreUI();
+    updateStatusUI();
+
+    engine.start();
+
+    // Setup random button availability simulator
+    if (simulatedButtonInterval) clearInterval(simulatedButtonInterval);
+    simulatedButtonInterval = window.setInterval(() => {
+      if (!engine || !engine.isActive() || engine.isDead()) return;
+      btnRepairHull.disabled = Math.random() > 0.5;
+      btnRefuel.disabled = Math.random() > 0.5;
+      btnRestoreOxygen.disabled = Math.random() > 0.4;
+      btnFixEngine.disabled = Math.random() > 0.8;
+    }, 2000);
+  }
+
+  // --- MENU LISTENERS ---
+  btnStartGame.addEventListener('click', startGame);
+  btnViewHighscores.addEventListener('click', showHighscores);
+  btnBackToMenu.addEventListener('click', showMenu);
+  btnReturnToMenu.addEventListener('click', showMenu);
+
+  btnSubmitScore.addEventListener('click', () => {
+    if (!engine) return;
+    const name = playerNameInput.value.trim().toUpperCase() || 'UNKNOWN CD';
+    const score = engine.getScore();
+    
+    // Add and sort
+    highscores.push({ name, score });
+    highscores.sort((a, b) => b.score - a.score);
+    // Keep top 10
+    highscores = highscores.slice(0, 10);
+    
+    btnSubmitScore.disabled = true;
+    playerNameInput.disabled = true;
+    btnSubmitScore.textContent = 'SAVED';
   });
 
-  // Start Simulation Loop
-  engine.start();
+  function renderHighscores() {
+    highscoresList.innerHTML = '';
+    highscores.forEach((entry, index) => {
+       const div = document.createElement('div');
+       div.className = 'score-entry';
+       div.innerHTML = `<span class="rank">${index + 1}.</span> <span class="name">${entry.name}</span> <span class="score">${entry.score} pts</span>`;
+       highscoresList.appendChild(div);
+    });
+  }
 
-  // --- UI Modification Logic ---
+  // --- GAME UI SYNC ---
   function updateHealthUI() {
+    if (!engine) return;
     const hp = engine.getHealth();
     healthBarFill.style.width = `${hp}%`;
     healthText.textContent = `${Math.floor(hp)}%`;
@@ -76,6 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateFuelUI() {
+    if (!engine) return;
     const fuel = engine.getFuel();
     fuelBarFill.style.width = `${fuel}%`;
     fuelText.textContent = `${Math.floor(fuel)}%`;
@@ -88,7 +210,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function updateScoreUI() {
+    if (!engine) return;
+    gameScoreDisplay.textContent = Math.floor(engine.getScore()).toString();
+  }
+
   function updateOxygenUI() {
+    if (!engine) return;
     const o2 = engine.getOxygen();
     oxygenBarFill.style.width = `${o2}%`;
     oxygenText.textContent = `${Math.floor(o2)}%`;
@@ -101,6 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateLogUI() {
+    if (!engine) return;
     const logs = engine.getLogs();
     if (logs.length === 0) return;
 
@@ -123,49 +252,42 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateStatusUI() {
-     if (!engine.isActive()) {
+     if (!engine) return;
+     if (!engine.isActive() && !engine.isDead()) {
        btnToggleSim.textContent = 'RESUME SIMULATION';
        statusIndicator.textContent = 'SIMULATION PAUSED';
-     } else {
+     } else if (!engine.isDead()) {
        btnToggleSim.textContent = 'PAUSE SIMULATION';
        checkNormalStatus();
      }
   }
 
   function checkNormalStatus() {
-    if (engine.isActive() && engine.getHealth() > 30) {
+    if (engine && engine.isActive() && engine.getHealth() > 30) {
       header.classList.remove('critical-status');
       statusIndicator.textContent = 'SYSTEMS NOMINAL';
     }
   }
 
-  // --- Button Listeners ---
-  btnRepairHull.addEventListener('click', () => {
-    engine.repairHull();
-  });
-  
-  btnRefuel.addEventListener('click', () => {
-    engine.refuel();
-  });
+  function handleDeath() {
+    if (!engine) return;
+    const finalScore = engine.getScore();
+    
+    // Wait briefly so the player sees they died, then switch view
+    setTimeout(() => {
+       showGameOver(finalScore);
+    }, 2500);
+  }
 
-  btnRestoreOxygen.addEventListener('click', () => {
-    engine.restoreOxygen();
-  });
-
+  // --- GAME BUTTON LISTENERS ---
+  btnRepairHull.addEventListener('click', () => { engine?.repairHull(); });
+  btnRefuel.addEventListener('click', () => { engine?.refuel(); });
+  btnRestoreOxygen.addEventListener('click', () => { engine?.restoreOxygen(); });
   btnToggleSim.addEventListener('click', () => {
-    if (engine.isActive()) {
-       engine.pause();
-    } else {
-       engine.start();
-    }
+    if (!engine) return;
+    if (engine.isActive()) { engine.pause(); } else { engine.start(); }
   });
 
-  // Enable buttons periodically randomly to simulate "repairs available"
-  setInterval(() => {
-    if (!engine.isActive() || engine.getHealth() <= 0) return;
-    btnRepairHull.disabled = Math.random() > 0.5;
-    btnRefuel.disabled = Math.random() > 0.5;
-    btnRestoreOxygen.disabled = Math.random() > 0.4;
-    btnFixEngine.disabled = Math.random() > 0.8;
-  }, 2000);
+  // Start with Menu
+  showMenu();
 });
