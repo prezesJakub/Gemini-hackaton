@@ -11,7 +11,7 @@ export class AudioCapture {
       this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-        sampleRate: 16000, // Wymagane przez Gemini
+        sampleRate: 16000,
       });
 
       this.source = this.audioContext.createMediaStreamSource(this.stream);

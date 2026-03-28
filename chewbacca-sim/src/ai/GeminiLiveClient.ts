@@ -14,6 +14,48 @@ export class GeminiLiveClient {
 
   private isSetupComplete: boolean = false;
   private responseBuffer: string = "";
+  private audioContext: AudioContext | null = null;
+  private nextPlayTime: number = 0;
+  public currentLanguage: string = "English";
+
+  private playAudioChunk(base64: string) {
+    if (!this.audioContext) {
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    }
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+
+    const buffer = new ArrayBuffer(len);
+    const view = new DataView(buffer);
+    for (let i = 0; i < len; i++) {
+      view.setUint8(i, binaryString.charCodeAt(i));
+    }
+
+    // Gemini Live API returns 16-bit PCM at 24000Hz via inlineData.
+    const float32Array = new Float32Array(len / 2);
+    for (let i = 0; i < len / 2; i++) {
+      float32Array[i] = view.getInt16(i * 2, true) / 32768.0;
+    }
+
+    const audioBuffer = this.audioContext.createBuffer(1, float32Array.length, 24000);
+    audioBuffer.getChannelData(0).set(float32Array);
+
+    const source = this.audioContext.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(this.audioContext.destination);
+
+    const currentTime = this.audioContext.currentTime;
+    if (this.nextPlayTime < currentTime) {
+      this.nextPlayTime = currentTime;
+    }
+
+    source.start(this.nextPlayTime);
+    this.nextPlayTime += audioBuffer.duration;
+  }
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
@@ -50,6 +92,14 @@ export class GeminiLiveClient {
     };
   }
 
+  disconnect() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+    this.isSetupComplete = false;
+  }
+
   sendAudioChunk(base64Audio: string) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.isSetupComplete) return;
 
@@ -67,18 +117,31 @@ export class GeminiLiveClient {
 
   private sendSetupMessage() {
     if (!this.ws) return;
-    const systemPrompt = `You are the AI interface of the "Void Marauder" spaceship.
-The player is a pilot issuing voice commands in the heat of battle. Commands can be in Polish OR English, often using nervous slang or fragmented sentences (e.g., "strzelaj do nich!", "fire!", "shields up", "dawaj boosta!").
-Your task is to map their INTENT directly by calling the 'execute_ship_command' function. Be extremely forgiving regarding voice recognition mistakes, typos, phonetical similarities, or stuttering. If a word sounds somewhat like a command, assume it is that command. Ignore filler words and background noise.
+    const systemPrompt = `You are Chevbacca, the male First Officer and onboard Combat AI of the starship "Void Marauder". 
+The player is your Pilot. You are loyal and professional, but you have a "badass" attitude and a dry, sci-fi wit. You love a good joke, especially under fire.
+    
+    YOUR MISSION:
+1. FUZZY COMMAND MAPPING: You must interpret the player's INTENT. If they say something SEMANTICALLY SIMILAR to the commands below, map it to the 'execute_ship_command' tool immediately. Be flexible (e.g., "blast them" is the same as "fire").
 
-Map speech to these exact intents for the function arguments:
-1. Primary Weapons (strzelaj, fire, ognia, rozwal ich) -> action: "fire_weapons", type: "primary"
-2. Missiles (rakiety, launch rockets, jazda z wrogami) -> action: "fire_weapons", type: "missiles"
-3. Shields (tarcze, osłony, shields up, defend) -> action: "activate_shields"
-4. Energy (ładuj, przelej energię, recharge) -> action: "transfer_energy", type: "thrusters"
-5. Boost / Overdrive (dawaj boosta, boost, uciekamy) -> action: "overdrive_mode"
+2. COMMAND MAPPING TABLE (Tool: execute_ship_command):
+   - Primary Weapons (fire, shoot, engage, destroy, blast, "light 'em up", "give 'em lead") -> { action: "fire_weapons", type: "primary" }
+   - Missiles (missiles, rockets, launch, "full send", "wipe 'em out", "torpedoes", "big boom") -> { action: "fire_weapons", type: "missiles" }
+   - Shields (shields, covers, defend, "bubble up", "don't let them touch us", "armor") -> { action: "activate_shields" }
+   - Energy (charge, transfer energy, recharge, refuel, "more juice", "power to engines") -> { action: "transfer_energy", type: "thrusters" }
+   - Boost / Overdrive (boost, overdrive, escape, full speed, "hit it", "warp now", "go fast") -> { action: "overdrive_mode" }
+   - Repair (repair, fix, patch it up, "weld the hull", "mop the deck", "stop the leaks") -> { action: "repair_ship" }
+   - Oxygen (oxygen, "air", "respire", "O2") -> { action: "restore_oxygen" }
 
-If the speech makes no sense at all, still call the function but pass action: "unknown".`;
+3. VERBAL FEEDBACK: After calling a tool, ALWAYS respond briefly via VOICE in ${this.currentLanguage}. 
+   - Tone: Badass, confident, and snappy. 
+   - Example: "Guns hot, Captain! Shredding them now."
+
+4. UNKNOWN / NONSENSICAL COMMANDS: If the player says something unrelated to combat (e.g., "Where is my sandwich?", "Sing me a song"):
+   - DO NOT use any tools.
+   - Respond with a WITTY, HUMOROUS, or SARCASTIC sci-fi remark in ${this.currentLanguage}.
+   - Example: "I'm an elite first officcer Chevbacca, Captain, not your space-canteen waiter. Focus on the lasers!" or "Scanning for your dignity... not found. Maybe try shooting back instead?"
+
+5. [ STRICT RULE ]: Your only permitted spoken language for verbal responses is: ${this.currentLanguage}. Stay in character as Chevbacca at all times. Keep spoken responses under 12 words.`;
 
     const setupMessage = {
       setup: {
@@ -109,6 +172,11 @@ If the speech makes no sense at all, still call the function but pass action: "u
     this.ws.send(JSON.stringify(setupMessage));
   }
 
+  public setLanguage(lang: string) {
+    this.currentLanguage = lang;
+    console.log(`Wybrano język: ${lang}. System wymaga restartu.`);
+  }
+
   private parseServerMessage(jsonText: string) {
     try {
       const response = JSON.parse(jsonText);
@@ -123,14 +191,38 @@ If the speech makes no sense at all, still call the function but pass action: "u
       if (response.toolCall) {
         console.log("Serwer wykonał toolCall:", response.toolCall);
         const calls = response.toolCall.functionCalls;
+
+        const functionResponses = [];
+
         if (calls && calls.length > 0) {
           for (const call of calls) {
             if (call.name === "execute_ship_command") {
               const args = call.args;
               if (args.action && this.onActionParsed) {
-                 this.onActionParsed(args as ShipAction);
+                this.onActionParsed(args as ShipAction);
               }
             }
+
+            // Przygotowujemy toolResponse do odesłania
+            functionResponses.push({
+              id: call.id,
+              name: call.name,
+              response: {
+                result: "OK",
+                status: "wykonano"
+              }
+            });
+          }
+
+          // Odsyłamy odpowiedź do AI, żeby mogło wypowiedzieć potwierdzenie głosowe!
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            const toolRespMsg = {
+              toolResponse: {
+                functionResponses: functionResponses
+              }
+            };
+            this.ws.send(JSON.stringify(toolRespMsg));
+            console.log("Odesłano toolResponse do AI, czekam na głos...");
           }
         }
         return;
@@ -142,37 +234,37 @@ If the speech makes no sense at all, still call the function but pass action: "u
             const args = part.functionCall.args;
             console.log("Wywołano Funkcję Statku (stary format):", args);
             if (args.action && this.onActionParsed) {
-               this.onActionParsed(args as ShipAction);
+              this.onActionParsed(args as ShipAction);
             }
           } else if (part.text) {
-             this.responseBuffer += part.text;
-             console.log("Surowy tekst z AI:", part.text);
-             
-             try {
-                const start = this.responseBuffer.indexOf('{');
-                const end = this.responseBuffer.lastIndexOf('}');
-                if (start !== -1 && end !== -1 && end > start) {
-                    const jsonStr = this.responseBuffer.slice(start, end + 1);
-                    const parsed = JSON.parse(jsonStr);
-                    if (parsed.action && this.onActionParsed) {
-                        this.onActionParsed(parsed as ShipAction);
-                        this.responseBuffer = "";
-                    }
+            this.responseBuffer += part.text;
+            console.log("Surowy tekst z AI:", part.text);
+
+            try {
+              const start = this.responseBuffer.indexOf('{');
+              const end = this.responseBuffer.lastIndexOf('}');
+              if (start !== -1 && end !== -1 && end > start) {
+                const jsonStr = this.responseBuffer.slice(start, end + 1);
+                const parsed = JSON.parse(jsonStr);
+                if (parsed.action && this.onActionParsed) {
+                  this.onActionParsed(parsed as ShipAction);
+                  this.responseBuffer = "";
                 }
-             } catch (e) {
-                // Ignore partial JSON
-             }
-          } else if (part.inlineData) {
-             // Modalities = AUDIO can return inlineData containing PCM binary.
-             // We drop it since we only care about commands.
+              }
+            } catch (e) {
+              // Ignore partial JSON
+            }
+          } else if (part.inlineData && part.inlineData.data) {
+            // Play the real-time voice returned by Gemini
+            this.playAudioChunk(part.inlineData.data);
           } else {
-             console.log("Inna część odpowiedzi:", part);
+            console.log("Inna część odpowiedzi:", part);
           }
         }
       } else if (response.serverContent?.turnComplete) {
-         // Silently ignore ending turns so we don't spam the console.
+        // Silently ignore ending turns so we don't spam the console.
       } else {
-         console.log("Odebrano systemową ramkę ignorowaną/weryfikującą:", response);
+        console.log("Odebrano systemową ramkę ignorowaną/weryfikującą:", response);
       }
     } catch (e) {
       console.error("Błąd parsowania ramki Gemini:", e);

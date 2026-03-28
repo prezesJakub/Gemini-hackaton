@@ -1,8 +1,10 @@
 import './style.css';
+import { SimEngine } from './simEngine';
+import { Radar } from './radar';
 import { AudioCapture } from './audio/AudioCapture';
 import { GeminiLiveClient, type ShipAction } from './ai/GeminiLiveClient';
 
-import { SimEngine } from './simEngine';
+const API_KEY = "AIzaSyCBUx-o0IKRX16lbh34zIzYWrb09ABNep0";
 
 document.addEventListener('DOMContentLoaded', () => {
   // --- VIEWS ---
@@ -22,37 +24,54 @@ document.addEventListener('DOMContentLoaded', () => {
   const playerNameInput = document.getElementById('playerNameInput') as HTMLInputElement;
   const btnSubmitScore = document.getElementById('btnSubmitScore') as HTMLButtonElement;
   const highscoresList = document.getElementById('highscoresList') as HTMLElement;
+  const gameOverCauseDisplay = document.getElementById('gameOverCauseDisplay') as HTMLElement;
 
   // --- GAME UI ELEMENTS ---
   const header = document.getElementById('systemHeader') as HTMLElement;
-  const statusIndicator = document.getElementById('systemStatus') as HTMLElement;
-  const gameScoreDisplay = document.getElementById('gameScoreDisplay') as HTMLElement;
-  
   const healthBarFill = document.getElementById('healthBarFill') as HTMLElement;
   const healthText = document.getElementById('healthText') as HTMLElement;
   const healthBarContainer = document.getElementById('healthBarContainer') as HTMLElement;
-  
   const fuelBarFill = document.getElementById('fuelBarFill') as HTMLElement;
   const fuelText = document.getElementById('fuelText') as HTMLElement;
-  const gasBarContainer = document.getElementById('fuelBarContainer') as HTMLElement;
-
   const oxygenBarFill = document.getElementById('oxygenBarFill') as HTMLElement;
   const oxygenText = document.getElementById('oxygenText') as HTMLElement;
   const oxygenBarContainer = document.getElementById('oxygenBarContainer') as HTMLElement;
-  
   const eventLog = document.getElementById('eventLog') as HTMLElement;
-  
-  const btnRepairHull = document.getElementById('btnRepairHull') as HTMLButtonElement;
-  const btnRefuel = document.getElementById('btnRefuel') as HTMLButtonElement;
+
+  // --- AI ASSISTANT ELEMENTS ---
+  const startAiBtn = document.getElementById('start-ai-btn') as HTMLButtonElement;
+  const aiStatusSpan = document.getElementById('ai-status') as HTMLSpanElement;
+  const langSelect = document.getElementById('lang-select') as HTMLSelectElement;
   const btnToggleSim = document.getElementById('btnToggleSim') as HTMLButtonElement;
-  const btnFixEngine = document.getElementById('btnFixEngine') as HTMLButtonElement;
-  const btnRestoreOxygen = document.getElementById('btnRestoreOxygen') as HTMLButtonElement;
 
   // --- STATE ---
   let engine: SimEngine | null = null;
-  let simulatedButtonInterval: number | null = null;
+  let hasHandledDeath = false;
+  let radar: Radar | null = null;
+  let radarLoopId: number | null = null;
+  const radarContainer = document.getElementById('radarContainer');
+  let radarCanvas: HTMLCanvasElement | null = null;
+  let radarCtx: CanvasRenderingContext2D | null = null;
   
-  // Simple local highscores array
+  if (radarContainer) {
+    radarCanvas = document.createElement('canvas');
+    radarCanvas.style.position = 'absolute';
+    radarCanvas.style.top = '0';
+    radarCanvas.style.left = '0';
+    radarCanvas.style.width = '100%';
+    radarCanvas.style.height = '100%';
+    radarContainer.appendChild(radarCanvas);
+    radarCtx = radarCanvas.getContext('2d');
+    
+    new ResizeObserver(() => {
+      if (radarCanvas && radarContainer) {
+        const rect = radarContainer.getBoundingClientRect();
+        radarCanvas.width = rect.width;
+        radarCanvas.height = rect.height;
+      }
+    }).observe(radarContainer);
+  }
+  
   let highscores: {name: string, score: number}[] = [
     { name: 'Han Solo', score: 12500 },
     { name: 'Lando', score: 8400 },
@@ -61,13 +80,94 @@ document.addEventListener('DOMContentLoaded', () => {
     { name: 'Cadet', score: 500 }
   ];
 
+  // --- AI INITIALIZATION ---
+  const audioCapture = new AudioCapture();
+  const aiClient = new GeminiLiveClient(API_KEY);
+
+  langSelect.addEventListener('change', (e) => {
+    const newLang = (e.target as HTMLSelectElement).value;
+    aiClient.setLanguage(newLang);
+    aiClient.disconnect();
+    audioCapture.stop();
+    startAiBtn.textContent = 'RE-INITIALIZE';
+    startAiBtn.disabled = false;
+    aiStatusSpan.textContent = "OFFLINE";
+    aiStatusSpan.className = 'status-disconnected';
+  });
+
+  aiClient.onStatusChange = (status) => {
+    aiStatusSpan.textContent = (status === 'Połączono' || status === 'Sesja gotowa') ? 'ONLINE' : status.toUpperCase();
+    aiStatusSpan.className = (status === 'Połączono' || status === 'Sesja gotowa') ? 'status-connected' : 'status-disconnected';
+    if (status === 'Połączono' || status === 'Sesja gotowa') {
+      startAiBtn.textContent = 'COMM-LINK ACTIVE';
+      startAiBtn.disabled = true;
+    } else {
+      startAiBtn.textContent = 'INITIALIZE COMM-LINK';
+      startAiBtn.disabled = false;
+    }
+  };
+
+  aiClient.onActionParsed = (action: ShipAction) => {
+    const time = new Date().toLocaleTimeString();
+    const speech = action.recognized_speech ? `"${action.recognized_speech}"` : "";
+    
+    // Log AI action to the Main Event Log
+    const entry = document.createElement('div');
+    entry.className = 'log-entry info';
+    entry.innerHTML = `<span class="timestamp">${time}</span> AI RECOGNIZED: ${speech} -> <b style="color:var(--accent-color)">${action.action}</b>`;
+    eventLog.prepend(entry);
+
+    if (engine && !engine.isDead()) {
+      switch (action.action) {
+        case 'fire_weapons':
+          if (action.type === 'missiles') {
+            radar?.fireMissiles();
+            engine.addLog(`AI: MISSILE SALVO LAUNCHED!`, 'warning');
+          } else {
+            radar?.manualShoot();
+            engine.addLog(`AI: Weapons systems engaged!`, 'info');
+          }
+          break;
+        case 'activate_shields':
+          radar?.activateShield();
+          engine.addLog("AI: Shield generator pulsing!", "info");
+          break;
+        case 'transfer_energy':
+          engine.refuel();
+          engine.addLog("AI: Hyperdrive fuel replenished!", "success");
+          break;
+        case 'overdrive_mode':
+          radar?.activateBoost();
+          engine.addLog("AI: Overdrive protocol active! Warp core engaged.", "warning");
+          break;
+        case 'repair_ship':
+          engine.repairHull();
+          engine.addLog("AI: Critical hull patching initiated.", "success");
+          break;
+        case 'restore_oxygen':
+          engine.restoreOxygen();
+          engine.addLog("AI: Oxygen scrubbers activated! Life support at 100%.", "success");
+          break;
+      }
+    }
+  };
+
+  startAiBtn.addEventListener('click', async () => {
+    startAiBtn.textContent = 'LINKING...';
+    await audioCapture.start();
+    audioCapture.onAudioData = (base64Data) => {
+      aiClient.sendAudioChunk(base64Data);
+    };
+    aiClient.connect();
+  });
+
   // --- VIEW ROUTING ---
   function hideAllViews() {
     mainMenuView.classList.add('hidden');
     highscoresView.classList.add('hidden');
     gameOverView.classList.add('hidden');
     gameDashboardView.classList.add('hidden');
-    gameDashboardView.classList.remove('dashboard-grid'); // remove grid structure when hidden
+    gameDashboardView.classList.remove('dashboard-grid');
   }
 
   function showMenu() {
@@ -81,10 +181,11 @@ document.addEventListener('DOMContentLoaded', () => {
     highscoresView.classList.remove('hidden');
   }
 
-  function showGameOver(finalScore: number) {
+  function showGameOver(finalScore: number, cause: string) {
     hideAllViews();
     gameOverScoreDisplay.textContent = `${finalScore}`;
-    playerNameInput.value = ''; // clear previous
+    gameOverCauseDisplay.textContent = cause;
+    playerNameInput.value = '';
     playerNameInput.disabled = false;
     btnSubmitScore.disabled = false;
     btnSubmitScore.textContent = 'SUBMIT REPORT';
@@ -94,60 +195,65 @@ document.addEventListener('DOMContentLoaded', () => {
   function startGame() {
     hideAllViews();
     gameDashboardView.classList.remove('hidden');
-    gameDashboardView.classList.add('dashboard-grid'); // restore grid
+    gameDashboardView.classList.add('dashboard-grid');
 
-    // Clean up old log
     eventLog.innerHTML = '';
+    hasHandledDeath = false;
     
-    // Create new fresh engine
     engine = new SimEngine();
-
-    // Subscribe UI
     engine.subscribe((eventType) => {
       if (!engine) return;
       switch (eventType) {
-        case 'health':
-          updateHealthUI();
-          break;
-        case 'fuel':
-          updateFuelUI();
-          break;
-        case 'oxygen':
-          updateOxygenUI();
-          break;
-        case 'score':
-          updateScoreUI();
-          break;
-        case 'log':
-          updateLogUI();
-          break;
+        case 'health': updateHealthUI(); break;
+        case 'fuel': updateFuelUI(); break;
+        case 'oxygen': updateOxygenUI(); break;
+        case 'log': updateLogUI(); break;
         case 'status':
-          updateStatusUI();
+          if (!engine.isDead()) {
+             btnToggleSim.textContent = engine.isActive() ? 'PAUSE' : 'RESUME';
+          }
           if (engine.isDead()) {
-             handleDeath();
+             let cause = 'SYSTEM FAILURE';
+             if (engine.getHealth() <= 0) cause = 'HULL INTEGRITY COMPROMISED';
+             if (engine.getOxygen() <= 0) cause = 'ASPHYXIATION (O2 DEPLETED)';
+             if (engine.getFuel() <= 0) cause = 'POWER FAILURE (OUT OF FUEL)';
+             handleDeath(cause);
           }
           break;
       }
     });
 
-    // Initialize UI
     updateHealthUI();
     updateFuelUI();
     updateOxygenUI();
-    updateScoreUI();
-    updateStatusUI();
+    
+    // Gra startuje ZAPAUZOWANA, aby gracz mógł połączyć się z AI
+    btnToggleSim.textContent = 'RESUME (PLAY)';
+    
+    if (radarLoopId !== null) cancelAnimationFrame(radarLoopId);
+    if (radarCanvas && radarCtx) {
+      radar = new Radar(radarCanvas);
+      radar.onDamage = (amount) => {
+        if (engine) engine.takeDamage(amount);
+      };
+      
+      let lastTime = performance.now();
+      const gameLoop = (currentTime: number) => {
+        const deltaTime = (currentTime - lastTime) / 1000;
+        lastTime = currentTime;
+        if (radar && engine) {
+           radar.isActive = engine.isActive(); // SYNC STATE
+           radar.playerHp = engine.getHealth();
+           radar.isGameOver = engine.isDead();
+           if (engine.isActive() && !engine.isDead()) radar.update(deltaTime);
+           if (radarCtx) radar.render(radarCtx);
+        }
+        radarLoopId = requestAnimationFrame(gameLoop);
+      };
+      radarLoopId = requestAnimationFrame(gameLoop);
+    }
 
-    engine.start();
-
-    // Setup random button availability simulator
-    if (simulatedButtonInterval) clearInterval(simulatedButtonInterval);
-    simulatedButtonInterval = window.setInterval(() => {
-      if (!engine || !engine.isActive() || engine.isDead()) return;
-      btnRepairHull.disabled = Math.random() > 0.5;
-      btnRefuel.disabled = Math.random() > 0.5;
-      btnRestoreOxygen.disabled = Math.random() > 0.4;
-      btnFixEngine.disabled = Math.random() > 0.8;
-    }, 2000);
+    startAiBtn.click();
   }
 
   // --- MENU LISTENERS ---
@@ -158,15 +264,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnSubmitScore.addEventListener('click', () => {
     if (!engine) return;
-    const name = playerNameInput.value.trim().toUpperCase() || 'UNKNOWN CD';
-    const score = engine.getScore();
-    
-    // Add and sort
+    const name = playerNameInput.value.trim().toUpperCase() || 'CADET';
+    const score = radar ? Math.round(radar.distanceTraveled / 10) : engine.getScore();
     highscores.push({ name, score });
     highscores.sort((a, b) => b.score - a.score);
-    // Keep top 10
     highscores = highscores.slice(0, 10);
-    
     btnSubmitScore.disabled = true;
     playerNameInput.disabled = true;
     btnSubmitScore.textContent = 'SAVED';
@@ -182,20 +284,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- GAME UI SYNC ---
   function updateHealthUI() {
     if (!engine) return;
     const hp = engine.getHealth();
     healthBarFill.style.width = `${hp}%`;
     healthText.textContent = `${Math.floor(hp)}%`;
-
     if (hp <= 30) {
       healthBarContainer.classList.add('danger');
       header.classList.add('critical-status');
-      statusIndicator.textContent = 'CRITICAL ALERT';
     } else {
       healthBarContainer.classList.remove('danger');
-      checkNormalStatus();
+      header.classList.remove('critical-status');
     }
   }
 
@@ -204,18 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const fuel = engine.getFuel();
     fuelBarFill.style.width = `${fuel}%`;
     fuelText.textContent = `${Math.floor(fuel)}%`;
-    if (fuel <= 20) {
-      fuelBarFill.style.background = 'linear-gradient(90deg, #aa4400, #ffaa00)';
-      gasBarContainer.style.boxShadow = '0 0 10px #ffaa00';
-    } else {
-      fuelBarFill.style.background = ''; 
-      gasBarContainer.style.boxShadow = '';
-    }
-  }
-
-  function updateScoreUI() {
-    if (!engine) return;
-    gameScoreDisplay.textContent = Math.floor(engine.getScore()).toString();
   }
 
   function updateOxygenUI() {
@@ -223,161 +310,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const o2 = engine.getOxygen();
     oxygenBarFill.style.width = `${o2}%`;
     oxygenText.textContent = `${Math.floor(o2)}%`;
-    
-    if (o2 <= 30) {
-      oxygenBarContainer.classList.add('danger');
-    } else {
-      oxygenBarContainer.classList.remove('danger');
-    }
+    if (o2 <= 30) oxygenBarContainer.classList.add('danger');
+    else oxygenBarContainer.classList.remove('danger');
   }
 
   function updateLogUI() {
     if (!engine) return;
     const logs = engine.getLogs();
     if (logs.length === 0) return;
-
     const latest = logs[logs.length - 1];
-    
     const entry = document.createElement('div');
     entry.className = `log-entry ${latest.type}`;
-    
     const timeSpan = document.createElement('span');
     timeSpan.className = 'timestamp';
     timeSpan.textContent = latest.timestamp;
-
     entry.appendChild(timeSpan);
     entry.append(` ${latest.message}`);
+    eventLog.prepend(entry);
+  }
 
-    eventLog.appendChild(entry);
+  function handleDeath(cause: string) {
+    if (!engine || hasHandledDeath) return;
+    hasHandledDeath = true;
     
-    // Auto scroll down
-    eventLog.scrollTop = eventLog.scrollHeight;
+    aiClient.disconnect();
+    audioCapture.stop();
+    aiStatusSpan.textContent = "OFFLINE (MISSION FAILED)";
+    aiStatusSpan.className = 'status-disconnected';
+    startAiBtn.disabled = false;
+    startAiBtn.textContent = 'RE-INITIALIZE';
+
+    const finalScore = radar ? Math.round(radar.distanceTraveled / 10) : 0;
+    setTimeout(() => { showGameOver(finalScore, cause); }, 2500);
   }
 
-  function updateStatusUI() {
-     if (!engine) return;
-     if (!engine.isActive() && !engine.isDead()) {
-       btnToggleSim.textContent = 'RESUME SIMULATION';
-       statusIndicator.textContent = 'SIMULATION PAUSED';
-     } else if (!engine.isDead()) {
-       btnToggleSim.textContent = 'PAUSE SIMULATION';
-       checkNormalStatus();
-     }
-  }
-
-  function checkNormalStatus() {
-    if (engine && engine.isActive() && engine.getHealth() > 30) {
-      header.classList.remove('critical-status');
-      statusIndicator.textContent = 'SYSTEMS NOMINAL';
-    }
-  }
-
-  function handleDeath() {
-    if (!engine) return;
-    const finalScore = engine.getScore();
-    
-    // Wait briefly so the player sees they died, then switch view
-    setTimeout(() => {
-       showGameOver(finalScore);
-    }, 2500);
-  }
-
-  // --- GAME BUTTON LISTENERS ---
-  btnRepairHull.addEventListener('click', () => { engine?.repairHull(); });
-  btnRefuel.addEventListener('click', () => { engine?.refuel(); });
-  btnRestoreOxygen.addEventListener('click', () => { engine?.restoreOxygen(); });
   btnToggleSim.addEventListener('click', () => {
     if (!engine) return;
-    if (engine.isActive()) { engine.pause(); } else { engine.start(); }
+    if (engine.isActive()) engine.pause(); else engine.start();
   });
 
-  // Start with Menu
   showMenu();
 });
-
-
-// Wpisz tutaj swój klucz API na czas hackatonu
-const API_KEY = "AIzaSyCBUx-o0IKRX16lbh34zIzYWrb09ABNep0";
-
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div class="hud">
-    <h1>VOID MARAUDER</h1>
-    <h2 class="subtitle">AI Voice Commander System</h2>
-    
-    <div class="panel">
-      <div class="status-indicator">
-        Status AI: <span id="ai-status" class="status-disconnected">Rozłączono</span>
-      </div>
-      
-      <button id="start-btn" class="cyber-button">INICJALIZACJA SYSTEMÓW STATKU (START)</button>
-    </div>
-
-    <div class="logs">
-      <h3>Dziennik Komend (Ostatnie intencje)</h3>
-      <div id="action-log">Oczekiwanie na komendy głosowe...</div>
-    </div>
-  </div>
-`;
-
-const startBtn = document.querySelector<HTMLButtonElement>('#start-btn')!;
-const statusSpan = document.querySelector<HTMLSpanElement>('#ai-status')!;
-const actionLog = document.querySelector<HTMLDivElement>('#action-log')!;
-
-const audioCapture = new AudioCapture();
-const aiClient = new GeminiLiveClient(API_KEY);
-
-aiClient.onStatusChange = (status) => {
-  statusSpan.textContent = status;
-  statusSpan.className = status === 'Połączono' ? 'status-connected' : 'status-disconnected';
-  if (status === 'Połączono') {
-    startBtn.textContent = 'SYSTEMY AKTYWNE (NASŁUCHUJĘ)';
-    startBtn.disabled = true;
-  }
-};
-
-aiClient.onActionParsed = (action: ShipAction) => {
-  const time = new Date().toLocaleTimeString();
-  const logEntry = document.createElement('div');
-  logEntry.className = 'log-entry highlight';
-  
-  const speech = action.recognized_speech ? `"${action.recognized_speech}"` : "niezrozumiały hałas";
-  // Oczyszczamy obiekt z tekstu żeby pokazać tylko twarde akcje jsona
-  const rawAction = { action: action.action, type: action.type };
-  if (!rawAction.type) delete rawAction.type;
-
-  let actionText = JSON.stringify(rawAction);
-  if (rawAction.action === "unknown") {
-    actionText = '<span style="color: #ff5555;">Brak prawidłowej akcji (zignorowano)</span>';
-  }
-
-  logEntry.innerHTML = `
-    <span style="color: #aaa;">[${time}] Usłyszano:</span> <span style="font-style: italic;">${speech}</span><br/>
-    <span style="color: #00ffcc;">➜ System wykonuje:</span> ${actionText}
-  `;
-
-  actionLog.prepend(logEntry);
-
-  if (actionLog.childElementCount > 10) {
-    actionLog.lastElementChild?.remove();
-  }
-
-  // W tym miejscu w przyszłości zostaną odpalone metody z fizyki statku (Antigravity engine)
-  // Przykładowo: 
-  // if (action.action === 'fire_weapons') ship.fire(action.type);
-};
-
-startBtn.addEventListener('click', async () => {
-  startBtn.textContent = 'ŁĄCZENIE Z KOMPUTEREM POKŁADOWYM...';
-
-  // 1. Uruchamiamy mikrofon
-  await audioCapture.start();
-
-  // 2. Kiedy mikrofon zacznie próbkować, wysyłamy chunki do Gemini
-  audioCapture.onAudioData = (base64Data) => {
-    aiClient.sendAudioChunk(base64Data);
-  };
-
-  // 3. Rozpoczynamy sesję WebSocketową Live API
-  aiClient.connect();
-});
-
