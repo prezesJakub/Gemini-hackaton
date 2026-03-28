@@ -30,21 +30,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- GAME UI ELEMENTS ---
   const header = document.getElementById('systemHeader') as HTMLElement;
   const statusIndicator = document.getElementById('systemStatus') as HTMLElement;
-
   const healthBarFill = document.getElementById('healthBarFill') as HTMLElement;
   const healthText = document.getElementById('healthText') as HTMLElement;
   const healthBarContainer = document.getElementById('healthBarContainer') as HTMLElement;
-  
   const fuelBarFill = document.getElementById('fuelBarFill') as HTMLElement;
   const fuelText = document.getElementById('fuelText') as HTMLElement;
-  const gasBarContainer = document.getElementById('fuelBarContainer') as HTMLElement;
-
   const oxygenBarFill = document.getElementById('oxygenBarFill') as HTMLElement;
   const oxygenText = document.getElementById('oxygenText') as HTMLElement;
   const oxygenBarContainer = document.getElementById('oxygenBarContainer') as HTMLElement;
-  
   const eventLog = document.getElementById('eventLog') as HTMLElement;
-  
   const btnRepairHull = document.getElementById('btnRepairHull') as HTMLButtonElement;
   const btnRefuel = document.getElementById('btnRefuel') as HTMLButtonElement;
   const btnToggleSim = document.getElementById('btnToggleSim') as HTMLButtonElement;
@@ -52,7 +46,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRestoreOxygen = document.getElementById('btnRestoreOxygen') as HTMLButtonElement;
 
   // --- AI VOICE HUD INJECTION ---
-  // We find the right-panel and prepend our Voice HUD
   const rightPanel = document.querySelector('.right-panel') as HTMLElement;
   if (rightPanel) {
     const aiHud = document.createElement('div');
@@ -88,10 +81,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let engine: SimEngine | null = null;
   let simulatedButtonInterval: number | null = null;
   let hasHandledDeath = false;
-  
   let radar: Radar | null = null;
   let radarLoopId: number | null = null;
-  
   const radarContainer = document.getElementById('radarContainer');
   let radarCanvas: HTMLCanvasElement | null = null;
   let radarCtx: CanvasRenderingContext2D | null = null;
@@ -161,17 +152,13 @@ document.addEventListener('DOMContentLoaded', () => {
     aiActionLog.prepend(logEntry);
     if (aiActionLog.childElementCount > 5) aiActionLog.lastElementChild?.remove();
 
-    // MAP AI ACTIONS TO ENGINE
     if (engine && !engine.isDead()) {
       switch (action.action) {
         case 'fire_weapons':
-          // Weapons logic in engine?
-          engine.addLog(`AI: Executing ${action.type || 'primary'} fire!`, 'action');
-          // If we had specialized weapon methods, call them here
+          engine.addLog(`AI: Executing ${action.type || 'primary'} fire!`, 'info');
           break;
         case 'activate_shields':
-          engine.addLog("AI: Shields active!", "action");
-          // maybe reduce damage taken for a while?
+          engine.addLog("AI: Shields active!", "info");
           break;
         case 'transfer_energy':
           engine.refuel();
@@ -179,7 +166,6 @@ document.addEventListener('DOMContentLoaded', () => {
           break;
         case 'overdrive_mode':
           engine.addLog("AI: OVERDRIVE ENGAGED!", "warning");
-          // speed up?
           break;
         case 'repair_ship':
           engine.repairHull();
@@ -262,7 +248,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateFuelUI();
     updateOxygenUI();
     updateStatusUI();
-
     engine.start();
 
     if (radarLoopId !== null) cancelAnimationFrame(radarLoopId);
