@@ -189,13 +189,17 @@ export class Radar {
       this.enemyCounter++;
       const spawnX = this.playerPosition.x + (Math.random()*1200-600);
       const spawnY = this.playerPosition.y - 1000; 
-      const angle = Math.random()*Math.PI*2; const speed = 50+Math.random()*100;
+      const angle = Math.random()*Math.PI*2; 
+      // ZWIĘKSZONA PRĘDKOŚĆ PRZECIWNIKÓW: 200-400
+      const speed = 200 + Math.random()*200;
       this.ships.push({
         id: `TIE-${this.enemyCounter}`, position: { x: spawnX, y: spawnY },
         velocity: { x: Math.cos(angle)*speed, y: Math.sin(angle)*speed },
-        isEnemy: true, shootCooldown: Math.random()*2+1 
+        isEnemy: true, 
+        // WYŻSZA CZĘSTOTLIWOŚĆ STRZELANIA
+        shootCooldown: 0.5 + Math.random()*1.5 
       });
-      this.spawnTimer = (1.0+Math.random()*1.5) * Math.max(0.2, 1.0-(this.distanceTraveled/40000));
+      this.spawnTimer = (0.8 + Math.random() * 1.2) * Math.max(0.2, 1.0-(this.distanceTraveled/40000));
     }
 
     this.spawnAllyTimer -= deltaTime;
@@ -224,7 +228,8 @@ export class Radar {
         let diff = desiredAngle - currentAngle;
         while (diff < -Math.PI) diff += Math.PI * 2;
         while (diff > Math.PI) diff -= Math.PI * 2;
-        const turnRate = 0.5 * deltaTime;
+        // ZWIĘKSZONA ZWROTNOŚĆ
+        const turnRate = 1.2 * deltaTime;
         let newAngle = currentAngle + Math.sign(diff) * Math.min(turnRate, Math.abs(diff));
         s.velocity.x = Math.cos(newAngle) * speed; s.velocity.y = Math.sin(newAngle) * Math.max(speed, 50);
 
@@ -233,8 +238,9 @@ export class Radar {
              s.shootCooldown -= deltaTime;
              if (s.shootCooldown <= 0) {
                this.projectileCounter++;
-               this.projectiles.push({ id:`P-E-${this.projectileCounter}`, position:{x:s.position.x, y:s.position.y+10}, velocity:{x:0, y:300}, sourceId:s.id });
-               s.shootCooldown = 2.0+Math.random()*3.0;
+               // SZYBSZE POCISKI WRZOGA: 500
+               this.projectiles.push({ id:`P-E-${this.projectileCounter}`, position:{x:s.position.x, y:s.position.y+10}, velocity:{x:0, y:500}, sourceId:s.id });
+               s.shootCooldown = 1.0 + Math.random()*2.0;
              }
           }
         }

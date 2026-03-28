@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnViewHighscores = document.getElementById('btnViewHighscores') as HTMLButtonElement;
   const btnBackToMenu = document.getElementById('btnBackToMenu') as HTMLButtonElement;
   const btnReturnToMenu = document.getElementById('btnReturnToMenu') as HTMLButtonElement;
-  
+
   // --- GAME OVER ELEMENTS ---
   const gameOverScoreDisplay = document.getElementById('gameOverScoreDisplay') as HTMLElement;
   const playerNameInput = document.getElementById('playerNameInput') as HTMLInputElement;
@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const radarContainer = document.getElementById('radarContainer');
   let radarCanvas: HTMLCanvasElement | null = null;
   let radarCtx: CanvasRenderingContext2D | null = null;
-  
+
   if (radarContainer) {
     radarCanvas = document.createElement('canvas');
     radarCanvas.style.position = 'absolute';
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     radarCanvas.style.height = '100%';
     radarContainer.appendChild(radarCanvas);
     radarCtx = radarCanvas.getContext('2d');
-    
+
     new ResizeObserver(() => {
       if (radarCanvas && radarContainer) {
         const rect = radarContainer.getBoundingClientRect();
@@ -71,8 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }).observe(radarContainer);
   }
-  
-  let highscores: {name: string, score: number}[] = [
+
+  let highscores: { name: string, score: number }[] = [
     { name: 'Han Solo', score: 12500 },
     { name: 'Lando', score: 8400 },
     { name: 'Luke', score: 5300 },
@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
   aiClient.onActionParsed = (action: ShipAction) => {
     const time = new Date().toLocaleTimeString();
     const speech = action.recognized_speech ? `"${action.recognized_speech}"` : "";
-    
+
     // Log AI action to the Main Event Log
     const entry = document.createElement('div');
     entry.className = 'log-entry info';
@@ -118,12 +118,15 @@ document.addEventListener('DOMContentLoaded', () => {
     eventLog.prepend(entry);
 
     if (engine && !engine.isDead()) {
+      let callResult: any = { status: "success" };
+
       switch (action.action) {
         case 'fire_weapons':
           if (action.type === 'missiles') {
             if (radar?.fireMissiles()) {
               engine.addLog(`AI: MISSILE SALVO LAUNCHED!`, 'warning');
             } else {
+              callResult = { status: "error", error: "cooldown", system: "missiles" };
               engine.addLog(`AI: Missile systems reloading! Please wait.`, 'info');
             }
           } else {
@@ -135,6 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (radar?.activateShield()) {
             engine.addLog("AI: Shield generator pulsing!", "info");
           } else {
+            callResult = { status: "error", error: "cooldown", system: "shields" };
             engine.addLog("AI: Shield energy not fully charged!", "info");
           }
           break;
@@ -146,6 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (radar?.activateBoost()) {
             engine.addLog("AI: Overdrive protocol active! Warp core engaged.", "warning");
           } else {
+            callResult = { status: "error", error: "cooldown", system: "boost" };
             engine.addLog("AI: Overdrive needs cooldown!", "info");
           }
           break;
@@ -157,6 +162,11 @@ document.addEventListener('DOMContentLoaded', () => {
           engine.restoreOxygen();
           engine.addLog("AI: Oxygen scrubbers activated! Life support at 100%.", "success");
           break;
+      }
+
+      // ODSYŁAMY WYNIK DO AI (aby mogło skomentować sytuację / cooldown)
+      if (action.callId) {
+        aiClient.sendToolResult(action.callId, callResult);
       }
     }
   };
@@ -208,7 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     eventLog.innerHTML = '';
     hasHandledDeath = false;
-    
+
     engine = new SimEngine();
     engine.subscribe((eventType) => {
       if (!engine) return;
@@ -219,14 +229,14 @@ document.addEventListener('DOMContentLoaded', () => {
         case 'log': updateLogUI(); break;
         case 'status':
           if (!engine.isDead()) {
-             btnToggleSim.textContent = engine.isActive() ? 'PAUSE' : 'RESUME';
+            btnToggleSim.textContent = engine.isActive() ? 'PAUSE' : 'RESUME';
           }
           if (engine.isDead()) {
-             let cause = 'SYSTEM FAILURE';
-             if (engine.getHealth() <= 0) cause = 'HULL INTEGRITY COMPROMISED';
-             if (engine.getOxygen() <= 0) cause = 'ASPHYXIATION (O2 DEPLETED)';
-             if (engine.getFuel() <= 0) cause = 'POWER FAILURE (OUT OF FUEL)';
-             handleDeath(cause);
+            let cause = 'SYSTEM FAILURE';
+            if (engine.getHealth() <= 0) cause = 'HULL INTEGRITY COMPROMISED';
+            if (engine.getOxygen() <= 0) cause = 'ASPHYXIATION (O2 DEPLETED)';
+            if (engine.getFuel() <= 0) cause = 'POWER FAILURE (OUT OF FUEL)';
+            handleDeath(cause);
           }
           break;
       }
@@ -235,27 +245,27 @@ document.addEventListener('DOMContentLoaded', () => {
     updateHealthUI();
     updateFuelUI();
     updateOxygenUI();
-    
+
     // Gra startuje ZAPAUZOWANA, aby gracz mógł połączyć się z AI
     btnToggleSim.textContent = 'RESUME (PLAY)';
-    
+
     if (radarLoopId !== null) cancelAnimationFrame(radarLoopId);
     if (radarCanvas && radarCtx) {
       radar = new Radar(radarCanvas);
       radar.onDamage = (amount) => {
         if (engine) engine.takeDamage(amount);
       };
-      
+
       let lastTime = performance.now();
       const gameLoop = (currentTime: number) => {
         const deltaTime = (currentTime - lastTime) / 1000;
         lastTime = currentTime;
         if (radar && engine) {
-           radar.isActive = engine.isActive(); // SYNC STATE
-           radar.playerHp = engine.getHealth();
-           radar.isGameOver = engine.isDead();
-           if (engine.isActive() && !engine.isDead()) radar.update(deltaTime);
-           if (radarCtx) radar.render(radarCtx);
+          radar.isActive = engine.isActive(); // SYNC STATE
+          radar.playerHp = engine.getHealth();
+          radar.isGameOver = engine.isDead();
+          if (engine.isActive() && !engine.isDead()) radar.update(deltaTime);
+          if (radarCtx) radar.render(radarCtx);
         }
         radarLoopId = requestAnimationFrame(gameLoop);
       };
@@ -286,10 +296,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderHighscores() {
     highscoresList.innerHTML = '';
     highscores.forEach((entry, index) => {
-       const div = document.createElement('div');
-       div.className = 'score-entry';
-       div.innerHTML = `<span class="rank">${index + 1}.</span> <span class="name">${entry.name}</span> <span class="score">${entry.score} pts</span>`;
-       highscoresList.appendChild(div);
+      const div = document.createElement('div');
+      div.className = 'score-entry';
+      div.innerHTML = `<span class="rank">${index + 1}.</span> <span class="name">${entry.name}</span> <span class="score">${entry.score} pts</span>`;
+      highscoresList.appendChild(div);
     });
   }
 
@@ -341,7 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleDeath(cause: string) {
     if (!engine || hasHandledDeath) return;
     hasHandledDeath = true;
-    
+
     aiClient.disconnect();
     audioCapture.stop();
     aiStatusSpan.textContent = "OFFLINE (MISSION FAILED)";

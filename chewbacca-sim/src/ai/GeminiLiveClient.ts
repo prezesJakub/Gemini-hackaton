@@ -2,6 +2,7 @@ export type ShipAction = {
   action: string;
   type?: string;
   recognized_speech?: string;
+  callId?: string; // Umożliwia odesłanie wyniku wykonania do AI
   [key: string]: any;
 };
 
@@ -32,13 +33,12 @@ export class GeminiLiveClient {
     const buffer = new ArrayBuffer(len);
     const view = new DataView(buffer);
     for (let i = 0; i < len; i++) {
-      view.setUint8(i, binaryString.charCodeAt(i));
+        view.setUint8(i, binaryString.charCodeAt(i));
     }
 
-    // Gemini Live API returns 16-bit PCM at 24000Hz via inlineData.
     const float32Array = new Float32Array(len / 2);
     for (let i = 0; i < len / 2; i++) {
-      float32Array[i] = view.getInt16(i * 2, true) / 32768.0;
+        float32Array[i] = view.getInt16(i * 2, true) / 32768.0;
     }
 
     const audioBuffer = this.audioContext.createBuffer(1, float32Array.length, 24000);
@@ -50,7 +50,7 @@ export class GeminiLiveClient {
 
     const currentTime = this.audioContext.currentTime;
     if (this.nextPlayTime < currentTime) {
-      this.nextPlayTime = currentTime;
+        this.nextPlayTime = currentTime;
     }
 
     source.start(this.nextPlayTime);
@@ -63,7 +63,6 @@ export class GeminiLiveClient {
 
   connect() {
     this.isSetupComplete = false;
-    // Endpoint WebSocket BidiGenerateContent dla Gemini Live API
     const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${this.apiKey}`;
     this.ws = new WebSocket(url);
 
@@ -115,6 +114,22 @@ export class GeminiLiveClient {
     this.ws.send(JSON.stringify(realtimeMsg));
   }
 
+  public sendToolResult(callId: string, result: any) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    
+    const toolRespMsg = {
+      toolResponse: {
+        functionResponses: [{
+          id: callId,
+          name: "execute_ship_command",
+          response: result
+        }]
+      }
+    };
+    this.ws.send(JSON.stringify(toolRespMsg));
+    console.log(`Wysłano wynik narzędzia (${callId}) do AI:`, result);
+  }
+
   private sendSetupMessage() {
     if (!this.ws) return;
     const systemPrompt = `You are Chevbacca, the male First Officer and onboard Combat AI of the starship "Void Marauder". 
@@ -141,11 +156,15 @@ The player is your Pilot. You are loyal and professional, but you have a "badass
    - Respond with a WITTY, HUMOROUS, or SARCASTIC sci-fi remark in ${this.currentLanguage}.
    - Example: "I'm an elite first officcer Chevbacca, Captain, not your space-canteen waiter. Focus on the lasers!" or "Scanning for your dignity... not found. Maybe try shooting back instead?"
 
-5. [ STRICT RULE ]: Your only permitted spoken language for verbal responses is: ${this.currentLanguage}. Stay in character as Chevbacca at all times. Keep spoken responses under 12 words.`;
+5. [ STRICT RULE ]: Your only permitted spoken language for verbal responses is: ${this.currentLanguage}. Stay in character as Chevbacca at all times. Keep spoken responses under 12 words.
+
+6. COOLDOWNS & SYSTEM ERRORS: If the tool result 'status' is 'error' (e.g. cooldown), you MUST respond via VOICE explaining the situation in character as Chevbacca.
+   - Example (Missiles on cooldown): "Warp core is still cooling down, Captain! I'm pushing it, but I need a few more seconds!"
+   - Tone: A bit annoyed or dramatic about the technical limitation.`;
 
     const setupMessage = {
       setup: {
-        model: "models/gemini-3.1-flash-live-preview",
+        model: "models/gemini-3.1-flash-live-preview", // POWRÓT DO MODELU UŻYTKOWNIKA
         generationConfig: {
           responseModalities: ["AUDIO"]
         },
@@ -187,42 +206,16 @@ The player is your Pilot. You are loyal and professional, but you have a "badass
         return;
       }
 
-      // Live API Tool Calling implementation
       if (response.toolCall) {
-        console.log("Serwer wykonał toolCall:", response.toolCall);
         const calls = response.toolCall.functionCalls;
-
-        const functionResponses = [];
-
         if (calls && calls.length > 0) {
           for (const call of calls) {
             if (call.name === "execute_ship_command") {
               const args = call.args;
               if (args.action && this.onActionParsed) {
-                this.onActionParsed(args as ShipAction);
+                this.onActionParsed({ ...args, callId: call.id } as ShipAction);
               }
             }
-
-            // Przygotowujemy toolResponse do odesłania
-            functionResponses.push({
-              id: call.id,
-              name: call.name,
-              response: {
-                result: "OK",
-                status: "wykonano"
-              }
-            });
-          }
-
-          // Odsyłamy odpowiedź do AI, żeby mogło wypowiedzieć potwierdzenie głosowe!
-          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            const toolRespMsg = {
-              toolResponse: {
-                functionResponses: functionResponses
-              }
-            };
-            this.ws.send(JSON.stringify(toolRespMsg));
-            console.log("Odesłano toolResponse do AI, czekam na głos...");
           }
         }
         return;
@@ -232,39 +225,15 @@ The player is your Pilot. You are loyal and professional, but you have a "badass
         for (const part of response.serverContent.modelTurn.parts) {
           if (part.functionCall && part.functionCall.name === "execute_ship_command") {
             const args = part.functionCall.args;
-            console.log("Wywołano Funkcję Statku (stary format):", args);
             if (args.action && this.onActionParsed) {
-              this.onActionParsed(args as ShipAction);
+                this.onActionParsed({ ...args, callId: part.functionCall.id } as ShipAction);
             }
           } else if (part.text) {
             this.responseBuffer += part.text;
-            console.log("Surowy tekst z AI:", part.text);
-
-            try {
-              const start = this.responseBuffer.indexOf('{');
-              const end = this.responseBuffer.lastIndexOf('}');
-              if (start !== -1 && end !== -1 && end > start) {
-                const jsonStr = this.responseBuffer.slice(start, end + 1);
-                const parsed = JSON.parse(jsonStr);
-                if (parsed.action && this.onActionParsed) {
-                  this.onActionParsed(parsed as ShipAction);
-                  this.responseBuffer = "";
-                }
-              }
-            } catch (e) {
-              // Ignore partial JSON
-            }
           } else if (part.inlineData && part.inlineData.data) {
-            // Play the real-time voice returned by Gemini
             this.playAudioChunk(part.inlineData.data);
-          } else {
-            console.log("Inna część odpowiedzi:", part);
           }
         }
-      } else if (response.serverContent?.turnComplete) {
-        // Silently ignore ending turns so we don't spam the console.
-      } else {
-        console.log("Odebrano systemową ramkę ignorowaną/weryfikującą:", response);
       }
     } catch (e) {
       console.error("Błąd parsowania ramki Gemini:", e);
