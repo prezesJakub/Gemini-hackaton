@@ -13,6 +13,13 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div class="panel">
       <div class="status-indicator">
         Status AI: <span id="ai-status" class="status-disconnected">Rozłączono</span>
+        <select id="lang-select" class="cyber-select" style="margin-left: 15px; background: #111; color: #0ff; border: 1px solid #0ff; padding: 5px;">
+           <option value="English" selected>English</option>
+           <option value="Polish">Polski</option>
+           <option value="Spanish">Español</option>
+           <option value="German">Deutsch</option>
+           <option value="Japanese">日本語</option>
+        </select>
       </div>
       
       <button id="start-btn" class="cyber-button">INICJALIZACJA SYSTEMÓW STATKU (START)</button>
@@ -28,16 +35,35 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 const startBtn = document.querySelector<HTMLButtonElement>('#start-btn')!;
 const statusSpan = document.querySelector<HTMLSpanElement>('#ai-status')!;
 const actionLog = document.querySelector<HTMLDivElement>('#action-log')!;
+const langSelect = document.querySelector<HTMLSelectElement>('#lang-select')!;
 
 const audioCapture = new AudioCapture();
 const aiClient = new GeminiLiveClient(API_KEY);
 
+langSelect.addEventListener('change', (e) => {
+  const newLang = (e.target as HTMLSelectElement).value;
+  aiClient.setLanguage(newLang);
+
+  // Zrywamy połączenie i wyłączamy mikrofon zgodnie z prośbą o ponowne kliknięcie
+  aiClient.disconnect();
+  audioCapture.stop();
+
+  startBtn.textContent = 'RE-INICJALIZACJA SYSTEMÓW (START)';
+  startBtn.disabled = false;
+  statusSpan.textContent = "Zmieniono język - Wymagany restart";
+  statusSpan.className = 'status-disconnected';
+});
+
 aiClient.onStatusChange = (status) => {
   statusSpan.textContent = status;
-  statusSpan.className = status === 'Połączono' ? 'status-connected' : 'status-disconnected';
+  statusSpan.className = (status === 'Połączono' || status === 'Sesja gotowa') ? 'status-connected' : 'status-disconnected';
+
   if (status === 'Połączono') {
     startBtn.textContent = 'SYSTEMY AKTYWNE (NASŁUCHUJĘ)';
     startBtn.disabled = true;
+  } else if (status === 'Rozłączono' || status === 'Błąd połączenia') {
+    startBtn.textContent = 'INICJALIZACJA SYSTEMÓW STATKU (START)';
+    startBtn.disabled = false;
   }
 };
 
@@ -45,7 +71,7 @@ aiClient.onActionParsed = (action: ShipAction) => {
   const time = new Date().toLocaleTimeString();
   const logEntry = document.createElement('div');
   logEntry.className = 'log-entry highlight';
-  
+
   const speech = action.recognized_speech ? `"${action.recognized_speech}"` : "niezrozumiały hałas";
   // Oczyszczamy obiekt z tekstu żeby pokazać tylko twarde akcje jsona
   const rawAction = { action: action.action, type: action.type };
